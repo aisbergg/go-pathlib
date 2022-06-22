@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -36,13 +35,25 @@ func (p *PathSuite) TeardownTest() {
 	assert.NoError(p.T(), p.tmpdir.RemoveAll())
 }
 
+// -----------------------------------------------------------------------------
+//
+// test reimplemented pathlib.PurePath-like methods
+//
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+//
+// test XXX
+//
+// -----------------------------------------------------------------------------
+
 func (p *PathSuite) TestSymlink() {
 	symlink := p.tmpdir.Join("symlink")
 	require.NoError(p.T(), symlink.Symlink(p.tmpdir))
 
 	linkLocation, err := symlink.Readlink()
 	require.NoError(p.T(), err)
-	assert.Equal(p.T(), p.tmpdir.path, linkLocation.path)
+	assert.Equal(p.T(), p.tmpdir.String(), linkLocation.String())
 }
 
 func (p *PathSuite) TestSymlinkBadFs() {
@@ -118,17 +129,17 @@ func (p *PathSuite) TestRenameString() {
 
 	newPath := p.tmpdir.Join("file2.txt")
 
-	err := file.Rename(newPath)
+	renamedPath, err := file.RenamePath(newPath)
 	assert.NoError(p.T(), err)
-	assert.Equal(p.T(), file.String(), p.tmpdir.Join("file2.txt").String())
+	assert.Equal(p.T(), renamedPath.String(), p.tmpdir.Join("file2.txt").String())
 
-	newBytes, err := file.ReadFile()
+	newBytes, err := renamedPath.ReadFile()
 	require.NoError(p.T(), err)
 	assert.Equal(p.T(), []byte("hello world!"), newBytes)
 
-	newFileExists, err := file.Exists()
+	renamedFileExists, err := renamedPath.Exists()
 	require.NoError(p.T(), err)
-	assert.True(p.T(), newFileExists)
+	assert.True(p.T(), renamedFileExists)
 
 	oldFileExists, err := p.tmpdir.Join("file.txt").Exists()
 	require.NoError(p.T(), err)
@@ -292,9 +303,9 @@ func (p *PathSuite) TestResolveAllAbsolute() {
 	resolvedParts := resolved.Parts()
 	p.Equal(
 		strings.Join(
-			[]string{"mnt", "nfs", "data", "users", "home", "LandonTClipp"}, resolved.Sep,
+			[]string{"mnt", "nfs", "data", "users", "home", "LandonTClipp"}, resolved.flavor.Separator(),
 		),
-		strings.Join(resolvedParts[len(resolvedParts)-6:], resolved.Sep))
+		strings.Join(resolvedParts[len(resolvedParts)-6:], resolved.flavor.Separator()))
 }
 
 func (p *PathSuite) TestEquals() {
@@ -347,7 +358,7 @@ func (p *PathSuite) TestGlobFunction() {
 	hello2 := p.tmpdir.Join("hello2.txt")
 	require.NoError(p.T(), hello2.WriteFile([]byte("hello2")))
 
-	paths, err := Glob(p.tmpdir.Fs(), p.tmpdir.Join("hello1*").String())
+	paths, err := p.tmpdir.Glob("hello1*")
 	p.NoError(err)
 	require.Equal(p.T(), 1, len(paths))
 	p.True(hello1.Equals(paths[0]), "received an unexpected path: %v", paths[0])
@@ -355,148 +366,4 @@ func (p *PathSuite) TestGlobFunction() {
 
 func TestPathSuite(t *testing.T) {
 	suite.Run(t, new(PathSuite))
-}
-
-func TestPath_IsAbsolute(t *testing.T) {
-	type fields struct {
-		path string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   bool
-	}{
-		{"root path", fields{"/"}, true},
-		{"absolute path", fields{"./"}, false},
-		{"absolute path", fields{"."}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := &Path{
-				path: tt.fields.path,
-			}
-			if got := p.IsAbsolute(); got != tt.want {
-				t.Errorf("Path.IsAbsolute() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestPath_Join(t *testing.T) {
-	type args struct {
-		elems []string
-	}
-	tests := []struct {
-		name   string
-		fields string
-		args   args
-		want   string
-	}{
-		{"join absolute root", "/", args{[]string{"foo", "bar"}}, "/foo/bar"},
-		{"join relative root", "./", args{[]string{"foo", "bar"}}, "foo/bar"},
-		{"join with existing path", "./foo", args{[]string{"bar", "baz"}}, "foo/bar/baz"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := afero.NewMemMapFs()
-			p := NewPathAfero(tt.fields, a)
-			want := NewPathAfero(tt.want, a)
-			if got := p.Join(tt.args.elems...).Clean(); !reflect.DeepEqual(got, want) {
-				t.Errorf("Path.Join() = %v, want %v", got, want)
-			}
-		})
-	}
-}
-
-func TestPath_Parent(t *testing.T) {
-	type fields struct {
-		path            string
-		fs              afero.Fs
-		DefaultFileMode os.FileMode
-	}
-	tests := []struct {
-		name   string
-		fields string
-		want   string
-	}{
-		{"absolute path", "/path/to/foo.txt", "/path/to"},
-		{"relative path", "foo.txt", "."},
-		{"root of relative", ".", "."},
-		{"root of relative with slash", "./", "."},
-		{"absolute root", "/", "/"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := afero.NewMemMapFs()
-			p := NewPathAfero(tt.fields, a)
-			want := NewPathAfero(tt.want, a)
-			if got := p.Parent(); !reflect.DeepEqual(got, want) {
-				t.Errorf("Path.Parent() = %v, want %v", got, want)
-			}
-		})
-	}
-}
-
-func TestPathPosix_RelativeTo(t *testing.T) {
-	a := afero.NewMemMapFs()
-	type fields struct {
-		path            string
-		fs              afero.Fs
-		DefaultFileMode os.FileMode
-	}
-	tests := []struct {
-		name      string
-		fieldPath string
-		args      string
-		want      string
-		wantErr   bool
-	}{
-		{"0", "/etc/passwd", "/", "etc/passwd", false},
-		{"1", "/etc/passwd", "/etc", "passwd", false},
-		{"2", "/etc/passwd/", "/etc", "passwd", false},
-		{"3", "/etc/passwd", "/etc/", "passwd", false},
-		{"4", "/etc/passwd/", "/etc/", "passwd", false},
-		{"5", "/etc/passwd/", "/usr/", "/etc/passwd/", true},
-		{"6", "/", "/", ".", false},
-		{"7", "./foo/bar", "foo", "bar", false},
-		{"8", "/a/b/c/d/file.txt", "/a/b/c/d/", "file.txt", false},
-		{"9", "/cool/cats/write/cool/code/file.csv", "/cool/cats/write", "cool/code/file.csv", false},
-		{"10", "/etc/passwd", "////////////", "etc/passwd", false},
-		{"11", "/etc/passwd/////", "/", "etc/passwd", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewPathAfero(tt.fieldPath, a)
-			got, err := p.RelativeTo(NewPathAfero(tt.args, a))
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Path.RelativeTo() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, NewPathAfero(tt.want, a)) {
-				t.Errorf("Path.RelativeTo() = %v, want %v", got, tt.want)
-			}
-		})
-		a = afero.NewMemMapFs()
-	}
-}
-
-func TestPath_Parts(t *testing.T) {
-	tests := []struct {
-		name string
-		path string
-		want []string
-	}{
-		{"0", "/path/to/thingy", []string{"/", "path", "to", "thingy"}},
-		{"1", "path/to/thingy", []string{"path", "to", "thingy"}},
-		{"2", "/", []string{"/"}},
-		{"3", "./path/to/thingy", []string{"path", "to", "thingy"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := NewPathAfero(tt.path, afero.NewMemMapFs())
-			if got := p.Parts(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Path.Parts() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }

@@ -34,7 +34,7 @@ func (w *WalkSuiteAll) SetupTest() {
 	require.NoError(w.T(), err)
 
 	w.Fs = afero.NewOsFs()
-	w.root = NewPathAfero(tmpdir, w.Fs)
+	w.root = NewPathWithFS(w.Fs, tmpdir)
 	w.walk, err = NewWalk(w.root)
 	require.NoError(w.T(), err)
 	w.walk.Opts.Algorithm = w.algorithm
