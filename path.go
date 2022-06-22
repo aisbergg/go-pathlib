@@ -5,56 +5,106 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/spf13/afero"
 )
 
-// Path is an object that represents a path
+// Path represents a filesystem path, offers methods for manipulating it and
+// allows I/O operations by utilizing Afero.
 type Path struct {
-	path string
-	fs   afero.Fs
+	PurePath
+	fs afero.Fs
 
-	// DefaultFileMode is the mode that is used when creating new files in functions
-	// that do not accept os.FileMode as a parameter.
+	// DefaultFileMode is the mode that is used when creating new files in
+	// functions that do not accept os.FileMode as a parameter.
 	DefaultFileMode os.FileMode
-	// DefaultDirMode is the mode that will be used when creating new directories
+	// DefaultDirMode is the mode that will be used when creating new
+	// directories.
 	DefaultDirMode os.FileMode
-	// Sep is the seperator used in path calculations. By default this is set to
-	// os.PathSeparator.
-	Sep string
 }
 
-// NewPath returns a new OS path
-func NewPath(path string) *Path {
-	return NewPathAfero(path, afero.NewOsFs())
+// NewPath returns a new `Path` from the given path(s). Depending on the OS
+// either a Windows or Posix flavored path is created.
+func NewPath(paths ...string) *Path {
+	return NewPathWithFS(afero.NewOsFs(), paths...)
 }
 
-// NewPathAfero returns a Path object with the given Afero object
-func NewPathAfero(path string, fs afero.Fs) *Path {
+// NewPathWithFS returns a new `Path` from the given path(s). Depending on the OS
+// either a Windows or Posix flavored path is created.
+func NewPathWithFS(fs afero.Fs, paths ...string) *Path {
+	if runtime.GOOS == "windows" {
+		return newPathWithFlavor(newWindowsFlavor(), fs, paths...)
+	}
+	return newPathWithFlavor(newPosixFlavor(), fs, paths...)
+}
+
+// NewPosixPath returns a new Posix flavored `Path` from the given
+// path(s).
+func NewPosixPath(paths ...string) *Path {
+	return NewPosixPathWithFS(afero.NewOsFs(), paths...)
+}
+
+// NewPosixPathWithFS returns a new Posix flavored `Path` from the given
+// path(s).
+func NewPosixPathWithFS(fs afero.Fs, paths ...string) *Path {
+	return newPathWithFlavor(newPosixFlavor(), fs, paths...)
+}
+
+// NewWindowsPath returns a new Windows flavored `Path` from the given
+// path(s).
+func NewWindowsPath(paths ...string) *Path {
+	return NewWindowsPathWithFS(afero.NewOsFs(), paths...)
+}
+
+// NewWindowsPathWithFS returns a new Windows flavored `Path` from the given
+// path(s).
+func NewWindowsPathWithFS(fs afero.Fs, paths ...string) *Path {
+	return newPathWithFlavor(newWindowsFlavor(), fs, paths...)
+}
+
+// newPathWithFlavor returns a new `Path` from the given path(s) and flavor.
+func newPathWithFlavor(flavor flavorer, fs afero.Fs, paths ...string) *Path {
+	drive, root, parts := parseParts(paths, flavor)
 	return &Path{
-		path:            path,
+		PurePath: PurePath{
+			drive:  drive,
+			root:   root,
+			parts:  parts,
+			flavor: flavor,
+		},
 		fs:              fs,
 		DefaultFileMode: DefaultFileMode,
 		DefaultDirMode:  DefaultDirMode,
-		Sep:             string(os.PathSeparator),
 	}
 }
 
-// Glob returns all of the path objects matched by the given pattern
-// inside of the afero filesystem.
-func Glob(fs afero.Fs, pattern string) ([]*Path, error) {
-	matches, err := afero.Glob(fs, pattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to glob: %w", err)
+// copyPathWithPaths returns a copy with new path(s).
+func copyPathWithPaths(copyFrom *Path, paths ...string) *Path {
+	drive, root, parts := parseParts(paths, copyFrom.flavor)
+	return &Path{
+		PurePath: PurePath{
+			drive:  drive,
+			root:   root,
+			parts:  parts,
+			flavor: copyFrom.flavor,
+		},
+		fs:              copyFrom.fs,
+		DefaultFileMode: copyFrom.DefaultFileMode,
+		DefaultDirMode:  copyFrom.DefaultDirMode,
 	}
+}
 
-	pathMatches := []*Path{}
-	for _, match := range matches {
-		pathMatches = append(pathMatches, NewPathAfero(match, fs))
+// copyPathWithPurePath returns a copy with a new underlying PurePath.
+func copyPathWithPurePath(copyFrom *Path, purePath *PurePath) *Path {
+	return &Path{
+		PurePath:        *purePath,
+		fs:              copyFrom.fs,
+		DefaultFileMode: copyFrom.DefaultFileMode,
+		DefaultDirMode:  copyFrom.DefaultDirMode,
 	}
-	return pathMatches, nil
 }
 
 type namer interface {
@@ -89,9 +139,11 @@ func lstatNotPossible(fs afero.Fs) error {
 	return fmt.Errorf("%w: Path's afero filesystem %s does not support lstat", ErrLstatNotPossible, getFsName(fs))
 }
 
-// *******************************
-// * afero.Fs wrappers           *
-// *******************************
+// -----------------------------------------------------------------------------
+//
+// afero.Fs wrappers
+//
+// -----------------------------------------------------------------------------
 
 // Create creates a file if possible, returning the file and an error, if any happens.
 func (p *Path) Create() (File, error) {
@@ -158,23 +210,21 @@ func (p *Path) RemoveAll() error {
 	return p.Fs().RemoveAll(p.String())
 }
 
-// RenameStr renames a file
-func (p *Path) RenameStr(newname string) error {
-	if err := p.Fs().Rename(p.String(), newname); err != nil {
-		return err
+// Rename renames the path to the given target path.
+func (p *Path) Rename(target string) (*Path, error) {
+	newPath := copyPathWithPaths(p, target)
+	if err := p.Fs().Rename(p.String(), newPath.String()); err != nil {
+		return nil, err
 	}
-
-	// Rename succeeded. Set our path to the newname.
-	p.path = newname
-	return nil
+	return newPath, nil
 }
 
-// Rename renames a file
-func (p *Path) Rename(target *Path) error {
-	return p.RenameStr(target.String())
+// RenamePath renames the path to the given target path.
+func (p *Path) RenamePath(target *Path) (*Path, error) {
+	return p.Rename(target.String())
 }
 
-// Stat returns the os.FileInfo of the given path
+// Stat returns the os.FileInfo of the path.
 func (p *Path) Stat() (os.FileInfo, error) {
 	return p.Fs().Stat(p.String())
 }
@@ -189,9 +239,11 @@ func (p *Path) Chtimes(atime time.Time, mtime time.Time) error {
 	return p.Fs().Chtimes(p.String(), atime, mtime)
 }
 
-// ************************
-// * afero.Afero wrappers *
-// ************************
+// -----------------------------------------------------------------------------
+//
+// afero.Afero wrappers
+//
+// -----------------------------------------------------------------------------
 
 // DirExists returns whether or not the path represents a directory that exists
 func (p *Path) DirExists() (bool, error) {
@@ -281,19 +333,98 @@ func (p *Path) WriteReader(r io.Reader) error {
 	return afero.WriteReader(p.Fs(), p.String(), r)
 }
 
-// *************************************
-// * pathlib.Path-like implementations *
-// *************************************
+// -----------------------------------------------------------------------------
+//
+// reimplemented pathlib.PurePath-like methods
+//
+// -----------------------------------------------------------------------------
 
-// Name returns the string representing the final path component
-func (p *Path) Name() string {
-	return filepath.Base(p.path)
+// WithName returns a new path with the file name changed.
+func (p *Path) WithName(name string) (*Path, error) {
+	pp, err := p.PurePath.WithName(name)
+	if err != nil {
+		return nil, err
+	}
+	return copyPathWithPurePath(p, pp), nil
 }
 
-// Parent returns the Path object of the parent directory
+// WithStem returns a new path with the stem changed.
+func (p *Path) WithStem(stem string) (*Path, error) {
+	return p.WithName(stem + p.Suffix())
+}
+
+// WithSuffix returns a new path with the file suffix changed. If the path has
+// no suffix, the suffix is added; if the suffix is empty, the suffix is removed
+// from the path.
+func (p *Path) WithSuffix(suffix string) (*Path, error) {
+	pp, err := p.PurePath.WithSuffix(suffix)
+	if err != nil {
+		return nil, err
+	}
+	return copyPathWithPurePath(p, pp), nil
+}
+
+// Join joins the current object's path with the given elements and returns
+// the resulting Path object.
+func (p *Path) Join(paths ...string) *Path {
+	return copyPathWithPurePath(p, p.PurePath.Join(paths...))
+}
+
+// JoinPath is the same as Join() except it accepts a path object
+func (p *Path) JoinPath(paths ...*Path) *Path {
+	spaths := make([]string, 0, len(paths))
+	for _, p := range paths {
+		spaths = append(spaths, p.String())
+	}
+	return p.Join(spaths...)
+}
+
+// Parent returns the Path object of the parent directory.
 func (p *Path) Parent() *Path {
-	return NewPathAfero(filepath.Dir(p.String()), p.Fs())
+	return copyPathWithPurePath(p, p.PurePath.Parent())
 }
+
+// Parents returns a list of Path objects for each parent directory.
+func (p *Path) Parents() []*Path {
+	pparents := p.PurePath.Parents()
+	var parents []*Path
+	for _, parent := range pparents {
+		parents = append(parents, copyPathWithPurePath(p, parent))
+	}
+	return parents
+}
+
+// RelativeTo computes a relative version of path to the other path. For instance,
+// if the object is /path/to/foo.txt and you provide /path/ as the argment, the
+// returned Path object will represent to/foo.txt.
+func (p *Path) RelativeTo(others ...string) (*Path, error) {
+	pp, err := p.PurePath.RelativeTo(others...)
+	if err != nil {
+		return nil, err
+	}
+	return copyPathWithPurePath(p, pp), nil
+}
+
+// RelativeToPath computes a relative version of path to the other path. For instance,
+// if the object is /path/to/foo.txt and you provide /path/ as the argment, the
+// returned Path object will represent to/foo.txt.
+func (p *Path) RelativeToPath(others ...*Path) (*Path, error) {
+	othersStr := make([]string, 0, len(others))
+	for _, p := range others {
+		othersStr = append(othersStr, p.String())
+	}
+	pp, err := p.PurePath.RelativeTo(othersStr...)
+	if err != nil {
+		return nil, err
+	}
+	return copyPathWithPurePath(p, pp), nil
+}
+
+// -----------------------------------------------------------------------------
+//
+// pathlib.Path-like methods
+//
+// -----------------------------------------------------------------------------
 
 // Readlink returns the target path of a symlink.
 //
@@ -307,11 +438,11 @@ func (p *Path) Readlink() (*Path, error) {
 		return nil, p.doesNotImplementErr("afero.LinkReader")
 	}
 
-	resolvedPathStr, err := linkReader.ReadlinkIfPossible(p.path)
+	resolvedPathStr, err := linkReader.ReadlinkIfPossible(p.String())
 	if err != nil {
 		return nil, err
 	}
-	return NewPathAfero(resolvedPathStr, p.fs), nil
+	return copyPathWithPaths(p, resolvedPathStr), nil
 }
 
 func resolveIfSymlink(path *Path) (*Path, bool, error) {
@@ -337,7 +468,7 @@ func resolveAllHelper(path *Path) (*Path, error) {
 		rightOfComponent := parts[i+1:]
 		upToComponent := parts[:i+1]
 
-		componentPath := NewPathAfero(strings.Join(upToComponent, path.Sep), path.Fs())
+		componentPath := copyPathWithPaths(path, upToComponent...)
 		resolved, isSymlink, err := resolveIfSymlink(componentPath)
 		if err != nil {
 			return path, err
@@ -345,7 +476,7 @@ func resolveAllHelper(path *Path) (*Path, error) {
 
 		if isSymlink {
 			if resolved.IsAbsolute() {
-				return resolveAllHelper(resolved.Join(strings.Join(rightOfComponent, path.Sep)))
+				return resolveAllHelper(resolved.Join(rightOfComponent...))
 			}
 			return resolveAllHelper(componentPath.Parent().JoinPath(resolved).Join(rightOfComponent...))
 		}
@@ -367,96 +498,6 @@ func (p *Path) ResolveAll() (*Path, error) {
 	return resolveAllHelper(p)
 }
 
-// Parts returns the individual components of a path
-func (p *Path) Parts() []string {
-	parts := []string{}
-	if p.IsAbsolute() {
-		parts = append(parts, p.Sep)
-	}
-	normalizedPathStr := normalizePathString(p.String())
-	normalizedParts := normalizePathParts(strings.Split(normalizedPathStr, p.Sep))
-	return append(parts, normalizedParts...)
-}
-
-// IsAbsolute returns whether or not the path is an absolute path. This is
-// determined by checking if the path starts with a slash.
-func (p *Path) IsAbsolute() bool {
-	return strings.HasPrefix(p.path, "/")
-}
-
-// Join joins the current object's path with the given elements and returns
-// the resulting Path object.
-func (p *Path) Join(elems ...string) *Path {
-	paths := []string{p.path}
-	for _, path := range elems {
-		paths = append(paths, path)
-	}
-	return NewPathAfero(strings.Join(paths, p.Sep), p.Fs())
-}
-
-// JoinPath is the same as Join() except it accepts a path object
-func (p *Path) JoinPath(path *Path) *Path {
-	return p.Join(path.Parts()...)
-}
-
-func normalizePathString(path string) string {
-	path = strings.TrimSpace(path)
-	path = strings.TrimPrefix(path, "./")
-	path = strings.TrimRight(path, " ")
-	if len(path) > 1 {
-		path = strings.TrimSuffix(path, "/")
-	}
-	return path
-}
-
-func normalizePathParts(path []string) []string {
-	// We might encounter cases where path represents a split of the path
-	// "///" etc. We will get a bunch of erroneous empty strings in such a split,
-	// so remove all of the trailing empty strings except for the first one (if any)
-	normalized := []string{}
-	for i := 0; i < len(path); i++ {
-		if path[i] != "" {
-			normalized = append(normalized, path[i])
-		}
-	}
-	return normalized
-}
-
-// RelativeTo computes a relative version of path to the other path. For instance,
-// if the object is /path/to/foo.txt and you provide /path/ as the argment, the
-// returned Path object will represent to/foo.txt.
-func (p *Path) RelativeTo(other *Path) (*Path, error) {
-	thisPathNormalized := normalizePathString(p.String())
-	otherPathNormalized := normalizePathString(other.String())
-
-	thisParts := p.Parts()
-	otherParts := other.Parts()
-
-	relativePath := []string{}
-	var relativeBase int
-	for idx, part := range otherParts {
-		if thisParts[idx] != part {
-			return p, fmt.Errorf("%s does not start with %s", thisPathNormalized, otherPathNormalized)
-		}
-		relativeBase = idx
-	}
-
-	relativePath = thisParts[relativeBase+1:]
-
-	if len(relativePath) == 0 || (len(relativePath) == 1 && relativePath[0] == "") {
-		relativePath = []string{"."}
-	}
-
-	return NewPathAfero(strings.Join(relativePath, "/"), p.Fs()), nil
-}
-
-// RelativeToStr computes a relative version of path to the other path. For instance,
-// if the object is /path/to/foo.txt and you provide /path/ as the argment, the
-// returned Path object will represent to/foo.txt.
-func (p *Path) RelativeToStr(other string) (*Path, error) {
-	return p.RelativeTo(NewPathAfero(other, p.Fs()))
-}
-
 // Lstat lstat's the path if the underlying afero filesystem supports it. If
 // the filesystem does not support afero.Lstater, or if the filesystem implements
 // afero.Lstater but returns false for the "lstat called" return value.
@@ -476,16 +517,18 @@ func (p *Path) Lstat() (os.FileInfo, error) {
 	return stat, err
 }
 
-// *********************************
-// * filesystem-specific functions *
-// *********************************
+// -----------------------------------------------------------------------------
+//
+// filesystem-specific methods
+//
+// -----------------------------------------------------------------------------
 
 // SymlinkStr symlinks to the target location. This will fail if the underlying
 // afero filesystem does not implement afero.Linker.
 //
 // THIS METHOD IS NOT TYPE SAFE.
 func (p *Path) SymlinkStr(target string) error {
-	return p.Symlink(NewPathAfero(target, p.Fs()))
+	return p.Symlink(copyPathWithPaths(p, target))
 }
 
 // Symlink symlinks to the target location. This will fail if the underlying
@@ -498,17 +541,14 @@ func (p *Path) Symlink(target *Path) error {
 		return p.doesNotImplementErr("afero.Linker")
 	}
 
-	return symlinker.SymlinkIfPossible(target.path, p.path)
+	return symlinker.SymlinkIfPossible(target.String(), p.String())
 }
 
-// ****************************************
-// * chigopher/pathlib-specific functions *
-// ****************************************
-
-// String returns the string representation of the path
-func (p *Path) String() string {
-	return p.path
-}
+// -----------------------------------------------------------------------------
+//
+// additional methods
+//
+// -----------------------------------------------------------------------------
 
 // IsFile returns true if the given path is a file.
 func (p *Path) IsFile() (bool, error) {
@@ -600,13 +640,23 @@ func (p *Path) GetLatest() (*Path, error) {
 
 // Glob returns all matches of pattern relative to this object's path.
 func (p *Path) Glob(pattern string) ([]*Path, error) {
-	return Glob(p.Fs(), p.Join(pattern).String())
+	pattern = strings.Join([]string{p.String(), pattern}, "/")
+	matches, err := afero.Glob(p.fs, pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob: %w", err)
+	}
+
+	pathMatches := []*Path{}
+	for _, match := range matches {
+		pathMatches = append(pathMatches, copyPathWithPaths(p, match))
+	}
+	return pathMatches, nil
 }
 
 // Clean returns a new object that is a lexically-cleaned
 // version of Path.
 func (p *Path) Clean() *Path {
-	return NewPathAfero(filepath.Clean(p.String()), p.Fs())
+	return copyPathWithPaths(p, filepath.Clean(p.String()))
 }
 
 // Mtime returns the modification time of the given path.
