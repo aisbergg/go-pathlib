@@ -1,7 +1,6 @@
-pathlib
-========
+# pathlib
 
-[![Build Status](https://travis-ci.org/chigopher/pathlib.svg?branch=master)](https://travis-ci.org/chigopher/pathlib) [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/chigopher/pathlib) ![GitHub release (latest by date)](https://img.shields.io/github/v/release/chigopher/pathlib?style=flat-square) [![codecov](https://codecov.io/gh/chigopher/pathlib/branch/master/graph/badge.svg)](https://codecov.io/gh/chigopher/pathlib) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/chigopher/pathlib?style=flat-square) ![License](https://img.shields.io/github/license/chigopher/pathlib?style=flat-square)
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/aisbergg/go-pathlib) ![GitHub release (latest by date)](https://img.shields.io/github/v/release/aisbergg/go-pathlib?style=flat-square) [![codecov](https://codecov.io/gh/aisbergg/go-pathlib/branch/master/graph/badge.svg)](https://codecov.io/gh/aisbergg/go-pathlib) ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/aisbergg/go-pathlib?style=flat-square) ![License](https://img.shields.io/github/license/aisbergg/go-pathlib?style=flat-square)
 
 Inspired by Python's pathlib, made better by Golang.
 
@@ -9,26 +8,30 @@ Inspired by Python's pathlib, made better by Golang.
 
 `pathlib` is currently in the beta stage of development. The API is not guaranteed to be solidified, however changes will be as minimal as possible.
 
-Table of Contents
------------------
+**Table of Contents:**
 
+- [Examples](#examples)
+  - [OsFs](#osfs)
+    - [Code](#code)
+    - [Output](#output)
+  - [In-memory FS](#in-memory-fs)
+    - [Code](#code-1)
+    - [Output](#output-1)
+- [Design Philosophy](#design-philosophy)
+  - [`filepath.Path`](#filepathpath)
+  - [`filepath.File`](#filepathfile)
+  - [Whoa whoa whoa, what is this afero nonsense?](#whoa-whoa-whoa-what-is-this-afero-nonsense)
+- [Frequently Asked Questions](#frequently-asked-questions)
+  - [Why `pathlib` and not `filepath`?](#why-pathlib-and-not-filepath)
+  - [Why not use `afero` directly?](#why-not-use-afero-directly)
+  - [Does this provide any benefit to my unit tests?](#does-this-provide-any-benefit-to-my-unit-tests)
+  - [What filesystems does this support?](#what-filesystems-does-this-support)
+- [Contributors](#contributors)
+- [License](#license)
 
-* [Examples](#examples)
-  * [OsFs](#osfs)
-  * [In\-memory FS](#in-memory-fs)
-* [Design Philosophy](#design-philosophy)
-  * [filepath\.Path](#filepathpath)
-  * [filepath\.File](#filepathfile)
-* [Frequently Asked Questions](#frequently-asked-questions)
-  * [Why pathlib and not filepath?](#why-pathlib-and-not-filepath)
-  * [Why not use afero directly?](#why-not-use-afero-directly)
-  * [Does this provide any benefit to my unit tests?](#does-this-provide-any-benefit-to-my-unit-tests)
-  * [What filesystems does this support?](#what-filesystems-does-this-support)
+---
 
-
-
-Examples
----------
+## Examples
 
 ### OsFs
 
@@ -43,7 +46,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chigopher/pathlib"
+	"github.com/aisbergg/go-pathlib"
 	"github.com/spf13/afero"
 )
 
@@ -90,7 +93,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chigopher/pathlib"
+	"github.com/aisbergg/go-pathlib"
 	"github.com/spf13/afero"
 )
 
@@ -137,7 +140,7 @@ The API of `filepath.Path` can be grouped into a few main categories:
 2. `github.com/spf13/afero.Afero` wrappers: these are methods that again have nearly identical signatures to `afero.Afero`. `afero.Afero` is a convenience object that provides higher-level behavior to the underlying `afero.Fs` object.
 3. Filesystem-specific methods: these are  methods that are implemented by some, but not all, of the afero filesystems. These methods may fail at runtime if the filesystem you provide does not implement the required interface.
 4. [Python's Pathlib](https://docs.python.org/3/library/pathlib.html)-inspired methods: these are methods that are not implemented in the previous two steps, and that provide the power behind the object-oriented design. 
-5. `github.com/chigopher/pathlib`-specific methods: these are miscellaneous methods that are not covered by any of the previous categories. These methods are typically conveniences around methods in one of the previous categories.
+5. `github.com/aisbergg/go-pathlib`-specific methods: these are miscellaneous methods that are not covered by any of the previous categories. These methods are typically conveniences around methods in one of the previous categories.
 
 ### `filepath.File`
 
@@ -149,7 +152,7 @@ The API of `filepath.Path` can be grouped into a few main categories:
 
 The basic diagram looks like this:
 
-![Pathlib Diagram](https://github.com/chigopher/pathlib/blob/master/docs/pathlib-diagram.png)
+![Pathlib Diagram](https://github.com/aisbergg/go-pathlib/blob/master/docs/pathlib-diagram.png)
 
 Frequently Asked Questions
 --------------------------
@@ -169,3 +172,15 @@ Most certainly! `pathlib` allows you to create [in-memory filesystems](#in-memor
 ### What filesystems does this support?
 
 Currently only POSIX-style paths are supported.
+
+## Contributors
+
+The library was originally developed by [LandonTClipp](https://github.com/LandonTClipp) and hosted at [aisbergg/go-pathlib](https://github.com/aisbergg/go-pathlib).
+
+- [LandonTClipp](https://github.com/LandonTClipp)
+- [aisbergg](https://github.com/aisbergg)
+
+
+## License
+
+[Apache-2.0](LICENSE)
