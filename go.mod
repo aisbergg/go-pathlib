@@ -1,4 +1,4 @@
-module github.com/chigopher/pathlib
+module github.com/aisbergg/go-pathlib
 
 go 1.14
 
