@@ -410,7 +410,7 @@ func (p *PurePath) String() string {
 		return p.drive + p.root + strings.Join(p.parts[1:], p.flavor.Separator())
 	}
 	if len(p.parts) == 0 {
-		return ""
+		return "."
 	}
 	return strings.Join(p.parts, p.flavor.Separator())
 }
