@@ -20,7 +20,7 @@ type PurePath struct {
 
 // NewPurePath returns a new `PurePath` from the given path(s). Depending on the
 // OS either a Windows or Posix flavored path is created.
-func NewPurePath(paths ...string) *PurePath {
+func NewPurePath(paths ...string) PurePath {
 	if runtime.GOOS == "windows" {
 		return newPurePathWithFlavor(newWindowsFlavor(), paths...)
 	}
@@ -29,21 +29,21 @@ func NewPurePath(paths ...string) *PurePath {
 
 // NewPurePosixPath returns a new Posix flavored `PurePath` from the given
 // path(s).
-func NewPurePosixPath(paths ...string) *PurePath {
+func NewPurePosixPath(paths ...string) PurePath {
 	return newPurePathWithFlavor(newPosixFlavor(), paths...)
 }
 
 // NewPureWindowsPath returns a new Windows flavored `PurePath` from the given
 // path(s).
-func NewPureWindowsPath(paths ...string) *PurePath {
+func NewPureWindowsPath(paths ...string) PurePath {
 	return newPurePathWithFlavor(newWindowsFlavor(), paths...)
 }
 
 // newPurePathWithFlavor returns a new `PurePath` from the given path(s) and
 // flavor.
-func newPurePathWithFlavor(flavor flavorer, paths ...string) *PurePath {
+func newPurePathWithFlavor(flavor flavorer, paths ...string) PurePath {
 	drive, root, parts := parseParts(paths, flavor)
-	return &PurePath{
+	return PurePath{
 		drive:  drive,
 		root:   root,
 		parts:  parts,
@@ -53,8 +53,8 @@ func newPurePathWithFlavor(flavor flavorer, paths ...string) *PurePath {
 
 // newPurePathFromParts returns a new `PurePath` from the given parts and
 // flavor.
-func newPurePathFromParts(flavor flavorer, drive, root string, parts []string) *PurePath {
-	return &PurePath{
+func newPurePathFromParts(flavor flavorer, drive, root string, parts []string) PurePath {
+	return PurePath{
 		drive:  drive,
 		root:   root,
 		parts:  parts,
@@ -95,32 +95,32 @@ func parseParts(paths []string, flavor flavorer) (drive string, root string, par
 // -----------------------------------------------------------------------------
 
 // AsPosix returns a string representation of the path with forward slashes.
-func (p *PurePath) AsPosix() string {
+func (p PurePath) AsPosix() string {
 	return strings.ReplaceAll(p.String(), p.flavor.Separator(), "/")
 }
 
 // Drive returns the drive prefix (letter or UNC path).
-func (p *PurePath) Drive() string {
+func (p PurePath) Drive() string {
 	return p.drive
 }
 
 // Root returns the root of the path.
-func (p *PurePath) Root() string {
+func (p PurePath) Root() string {
 	return p.root
 }
 
 // Anchor returns the concatenation of the drive and root component, or "".
-func (p *PurePath) Anchor() string {
+func (p PurePath) Anchor() string {
 	return p.drive + p.root
 }
 
 // Parts returns the individual components of a path
-func (p *PurePath) Parts() []string {
+func (p PurePath) Parts() []string {
 	return p.parts
 }
 
 // Name returns the string representing the final path component.
-func (p *PurePath) Name() string {
+func (p PurePath) Name() string {
 	if len(p.parts) == 0 ||
 		((p.drive != "" || p.root != "") && len(p.parts) == 1) {
 		return ""
@@ -130,7 +130,7 @@ func (p *PurePath) Name() string {
 
 // Suffix returns the final component's last suffix including the leading dot.
 // For example, in "/path/to/foo.bar", Suffix returns ".bar".
-func (p *PurePath) Suffix() string {
+func (p PurePath) Suffix() string {
 	name := p.Name()
 	i := strings.LastIndex(name, ".")
 	if 0 < i && i < len(name)-1 {
@@ -142,7 +142,7 @@ func (p *PurePath) Suffix() string {
 // Suffixes returns a list of the path's file extensions.
 // For example, in "/path/to/foo.bar.baz", Suffixes returns
 // []string{".bar", ".baz"}.
-func (p *PurePath) Suffixes() []string {
+func (p PurePath) Suffixes() []string {
 	name := p.Name()
 	if strings.HasSuffix(name, ".") {
 		return []string{}
@@ -158,7 +158,7 @@ func (p *PurePath) Suffixes() []string {
 
 // Stem returns the final path component, minus any trailing suffix.
 // For example, in "/path/to/foo.bar.baz", Stem returns "foo.bar".
-func (p *PurePath) Stem() string {
+func (p PurePath) Stem() string {
 	name := p.Name()
 	i := strings.LastIndex(name, ".")
 	if 0 < i && i < len(name)-1 {
@@ -168,37 +168,37 @@ func (p *PurePath) Stem() string {
 }
 
 // WithName returns a new path with the file name changed.
-func (p *PurePath) WithName(name string) (*PurePath, error) {
+func (p PurePath) WithName(name string) (PurePath, error) {
 	if p.Name() == "" {
-		return nil, errors.New("path has an empty name")
+		return PurePath{}, errors.New("path has an empty name")
 	}
 	drive, root, parts := parseParts([]string{name}, p.flavor)
 	if name == "" ||
 		name[len(name)-1:] == p.flavor.Separator() ||
 		name[len(name)-1:] == p.flavor.AltSeparator() ||
 		drive != "" || root != "" || len(parts) != 1 {
-		return nil, errors.New("invalid name")
+		return PurePath{}, errors.New("invalid name")
 	}
 	return newPurePathFromParts(p.flavor, p.drive, p.root, append(p.parts[:len(p.parts)-1], name)), nil
 }
 
 // WithStem returns a new path with the stem changed.
-func (p *PurePath) WithStem(stem string) (*PurePath, error) {
+func (p PurePath) WithStem(stem string) (PurePath, error) {
 	return p.WithName(stem + p.Suffix())
 }
 
 // WithSuffix returns a new path with the file suffix changed. If the path has
 // no suffix, the suffix is added; if the suffix is empty, the suffix is removed
 // from the path.
-func (p *PurePath) WithSuffix(suffix string) (*PurePath, error) {
+func (p PurePath) WithSuffix(suffix string) (PurePath, error) {
 	if (suffix != "" && (!strings.HasPrefix(suffix, ".") || suffix == ".")) ||
 		strings.Contains(suffix, p.flavor.Separator()) ||
 		(p.flavor.AltSeparator() != "" && strings.Contains(suffix, p.flavor.AltSeparator())) {
-		return nil, errors.New("invalid suffix")
+		return PurePath{}, errors.New("invalid suffix")
 	}
 	name := p.Name()
 	if name == "" {
-		return nil, errors.New("path has an empty name")
+		return PurePath{}, errors.New("path has an empty name")
 	}
 	oldSuffix := p.Suffix()
 	if oldSuffix == "" {
@@ -211,7 +211,7 @@ func (p *PurePath) WithSuffix(suffix string) (*PurePath, error) {
 
 // Join joins the current object's path with the given elements and returns
 // the resulting Path object.
-func (p *PurePath) Join(paths ...string) *PurePath {
+func (p PurePath) Join(paths ...string) PurePath {
 	spaths := make([]string, 0, len(paths)+1)
 	spaths = append(spaths, p.String())
 	spaths = append(spaths, paths...)
@@ -219,7 +219,7 @@ func (p *PurePath) Join(paths ...string) *PurePath {
 }
 
 // JoinPath is the same as Join() except it accepts a path object
-func (p *PurePath) JoinPath(paths ...*PurePath) *PurePath {
+func (p PurePath) JoinPath(paths ...PurePath) PurePath {
 	spaths := make([]string, 0, len(paths))
 	for _, p := range paths {
 		spaths = append(spaths, p.String())
@@ -228,10 +228,10 @@ func (p *PurePath) JoinPath(paths ...*PurePath) *PurePath {
 }
 
 // Parent returns the Path object of the parent directory.
-func (p *PurePath) Parent() *PurePath {
+func (p PurePath) Parent() PurePath {
 	drive, root, parts := p.drive, p.root, p.parts
 	if len(parts) == 0 {
-		return &PurePath{
+		return PurePath{
 			flavor: p.flavor,
 			parts:  []string{},
 		}
@@ -243,7 +243,7 @@ func (p *PurePath) Parent() *PurePath {
 }
 
 // Parents returns a list of Path objects for each parent directory.
-func (p *PurePath) Parents() (parents []*PurePath) {
+func (p PurePath) Parents() (parents []PurePath) {
 	drive, root, parts := p.drive, p.root, p.parts
 	numParents := 0
 	if drive != "" || root != "" {
@@ -251,7 +251,7 @@ func (p *PurePath) Parents() (parents []*PurePath) {
 	} else {
 		numParents = len(parts)
 	}
-	parents = make([]*PurePath, 0, numParents)
+	parents = make([]PurePath, 0, numParents)
 	for i := len(parts) - 1; i >= len(parts)-numParents; i-- {
 		parent := newPurePathFromParts(p.flavor, drive, root, parts[:i])
 		parents = append(parents, parent)
@@ -262,9 +262,9 @@ func (p *PurePath) Parents() (parents []*PurePath) {
 // RelativeTo computes a relative version of path to the other path. For instance,
 // if the object is /path/to/foo.txt and you provide /path/ as the argment, the
 // returned Path object will represent to/foo.txt.
-func (p *PurePath) RelativeTo(others ...string) (*PurePath, error) {
+func (p PurePath) RelativeTo(others ...string) (PurePath, error) {
 	if len(others) == 0 {
-		return nil, errors.New("at least one other path must be provided")
+		return PurePath{}, errors.New("at least one other path must be provided")
 	}
 	drive, root, parts := p.drive, p.root, p.parts
 	var absParts []string
@@ -307,10 +307,10 @@ func (p *PurePath) RelativeTo(others ...string) (*PurePath, error) {
 	n := len(toAbsParts)
 	if n == 0 {
 		if drive != "" || root != "" {
-			return nil, errors.New("path is not relative")
+			return PurePath{}, errors.New("path is not relative")
 		}
 	} else if !casefoldComp(absParts, toAbsParts) {
-		return nil, errors.New("path is not relative")
+		return PurePath{}, errors.New("path is not relative")
 	}
 	if n != 1 {
 		root = ""
@@ -321,9 +321,9 @@ func (p *PurePath) RelativeTo(others ...string) (*PurePath, error) {
 // RelativeToPath computes a relative version of path to the other path. For instance,
 // if the object is /path/to/foo.txt and you provide /path/ as the argment, the
 // returned Path object will represent to/foo.txt.
-func (p *PurePath) RelativeToPath(others ...*PurePath) (*PurePath, error) {
+func (p PurePath) RelativeToPath(others ...PurePath) (PurePath, error) {
 	if len(others) == 0 {
-		return nil, errors.New("at least one other path must be provided")
+		return PurePath{}, errors.New("at least one other path must be provided")
 	}
 	if len(others) > 1 {
 		othersStr := make([]string, 0, len(others))
@@ -336,7 +336,7 @@ func (p *PurePath) RelativeToPath(others ...*PurePath) (*PurePath, error) {
 }
 
 // IsRelativeTo returns whether or not the path is relative to the other path.
-func (p *PurePath) IsRelativeTo(other ...string) (bool, error) {
+func (p PurePath) IsRelativeTo(other ...string) (bool, error) {
 	if len(other) == 0 {
 		return false, errors.New("at least one other path must be provided")
 	}
@@ -345,7 +345,7 @@ func (p *PurePath) IsRelativeTo(other ...string) (bool, error) {
 }
 
 // IsRelativeToPath returns whether or not the path is relative to the other path.
-func (p *PurePath) IsRelativeToPath(other ...*PurePath) (bool, error) {
+func (p PurePath) IsRelativeToPath(other ...PurePath) (bool, error) {
 	if len(other) == 0 {
 		return false, errors.New("at least one other path must be provided")
 	}
@@ -355,7 +355,7 @@ func (p *PurePath) IsRelativeToPath(other ...*PurePath) (bool, error) {
 
 // IsAbsolute returns whether or not the path is an absolute path. A absolute
 // path has both a root and, if applicable, a drive.
-func (p *PurePath) IsAbsolute() bool {
+func (p PurePath) IsAbsolute() bool {
 	if p.root == "" {
 		return false
 	}
@@ -363,7 +363,7 @@ func (p *PurePath) IsAbsolute() bool {
 }
 
 // Match returns whether or not the path matches the given pattern.
-func (p *PurePath) Match(pattern string) bool {
+func (p PurePath) Match(pattern string) bool {
 	cf := p.flavor.Casefold
 	pattern = cf(pattern)
 	patDrive, patRoot, patParts := parseParts([]string{pattern}, p.flavor)
@@ -405,7 +405,7 @@ func (p *PurePath) Match(pattern string) bool {
 // -----------------------------------------------------------------------------
 
 // String returns the string representation of the path
-func (p *PurePath) String() string {
+func (p PurePath) String() string {
 	if p.drive != "" || p.root != "" {
 		return p.drive + p.root + strings.Join(p.parts[1:], p.flavor.Separator())
 	}
@@ -418,12 +418,12 @@ func (p *PurePath) String() string {
 // Equals returns whether or not the object's path is identical
 // to other's, in a shallow sense. It simply checks for equivalence
 // in the unresolved Paths() of each object.
-func (p *PurePath) Equals(other *PurePath) bool {
+func (p PurePath) Equals(other PurePath) bool {
 	return p.String() == other.String()
 }
 
 // Clean returns a new object that is a lexically-cleaned
 // version of Path.
-func (p *PurePath) Clean() *PurePath {
+func (p PurePath) Clean() PurePath {
 	return newPurePathWithFlavor(p.flavor, filepath.Clean(p.String()))
 }

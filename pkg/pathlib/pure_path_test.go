@@ -133,14 +133,14 @@ func TestPureWindowsPath_ParseParts(t *testing.T) {
 //
 // -----------------------------------------------------------------------------
 
-func PP(path ...string) *PurePath {
+func PP(path ...string) PurePath {
 	return NewPurePath(path...)
 }
 
-func PPP(path ...string) *PurePath {
+func PPP(path ...string) PurePath {
 	return NewPurePosixPath(path...)
 }
-func PWP(path ...string) *PurePath {
+func PWP(path ...string) PurePath {
 	return NewPureWindowsPath(path...)
 }
 
@@ -253,8 +253,8 @@ func TestPurePath_Stem(t *testing.T) {
 	assert.Equal("Some name. Ending with a dot.", PP("a/Some name. Ending with a dot.").Stem())
 }
 
-func discErr(p *PurePath, _ error) *PurePath { return p }
-func discVal(_ interface{}, e error) error   { return e }
+func discErr(p PurePath, _ error) PurePath { return p }
+func discVal(_ interface{}, e error) error { return e }
 
 func TestPurePath_WithName(t *testing.T) {
 	assert := assert.New(t)
@@ -340,11 +340,11 @@ func TestPurePath_Parents(t *testing.T) {
 	p := PP("a/b/c")
 	par := p.Parents()
 	assert.Equal(3, len(par))
-	assert.Equal([]*PurePath{PP("a/b"), PP("a"), PP(".")}, par)
+	assert.Equal([]PurePath{PP("a/b"), PP("a"), PP(".")}, par)
 	p = PP("/a/b/c")
 	par = p.Parents()
 	assert.Equal(3, len(par))
-	assert.Equal([]*PurePath{PP("/a/b"), PP("/a"), PP("/")}, par)
+	assert.Equal([]PurePath{PP("/a/b"), PP("/a"), PP("/")}, par)
 }
 
 func TestPurePath_Match(t *testing.T) {
@@ -464,7 +464,7 @@ func TestPurePath_Join(t *testing.T) {
 	p := PP("a/b")
 	pp := p.Join("c")
 	assert.Equal(PP("a/b/c"), pp)
-	assert.IsType(&PurePath{}, p)
+	assert.IsType(PurePath{}, p)
 	pp = p.Join("c", "d")
 	assert.Equal(PP("a/b/c/d"), pp)
 	pp = p.JoinPath(PP("c"))

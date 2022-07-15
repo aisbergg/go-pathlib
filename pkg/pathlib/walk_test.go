@@ -22,7 +22,7 @@ import (
 type WalkSuiteAll struct {
 	suite.Suite
 	walk      *Walk
-	root      *Path
+	root      Path
 	algorithm Algorithm
 	Fs        afero.Fs
 }
@@ -213,7 +213,7 @@ var ConfusedWandering Algorithm = 0xBADC0DE
 func TestWalk_Walk(t *testing.T) {
 	type fields struct {
 		Opts *WalkOpts
-		root *Path
+		root Path
 	}
 	type args struct {
 		walkFn WalkFunc

@@ -99,19 +99,16 @@ const (
 // Walk is an object that handles walking through a directory tree
 type Walk struct {
 	Opts *WalkOpts
-	root *Path
+	root Path
 }
 
 // NewWalk returns a new Walk struct with default values applied
-func NewWalk(root *Path) (*Walk, error) {
+func NewWalk(root Path) (*Walk, error) {
 	return NewWalkWithOpts(root, DefaultWalkOpts())
 }
 
 // NewWalkWithOpts returns a Walk object with the given WalkOpts applied
-func NewWalkWithOpts(root *Path, opts *WalkOpts) (*Walk, error) {
-	if root == nil {
-		return nil, fmt.Errorf("root path can't be nil")
-	}
+func NewWalkWithOpts(root Path, opts *WalkOpts) (*Walk, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("opts can't be nil")
 	}
@@ -129,19 +126,19 @@ func (w *Walk) maxDepthReached(currentDepth int) bool {
 }
 
 type dfsObjectInfo struct {
-	path *Path
+	path Path
 	info os.FileInfo
 	err  error
 }
 
-func (w *Walk) walkDFS(walkFn WalkFunc, root *Path, currentDepth int) error {
+func (w *Walk) walkDFS(walkFn WalkFunc, root Path, currentDepth int) error {
 	if w.maxDepthReached(currentDepth) {
 		return nil
 	}
 
 	var children []*dfsObjectInfo
 
-	if err := w.iterateImmediateChildren(root, func(child *Path, info os.FileInfo, encounteredErr error) error {
+	if err := w.iterateImmediateChildren(root, func(child Path, info os.FileInfo, encounteredErr error) error {
 		// Since we are doing depth-first, we have to first recurse through all the directories,
 		// and save all non-directory objects so we can defer handling at a later time.
 		if IsDir(info.Mode()) {
@@ -182,7 +179,7 @@ func (w *Walk) walkDFS(walkFn WalkFunc, root *Path, currentDepth int) error {
 // and will run the algorithm function for every child. The algorithm function is essentially
 // what differentiates how each walk behaves, and determines what actions to take given a
 // certain child.
-func (w *Walk) iterateImmediateChildren(root *Path, algorithmFunction WalkFunc) error {
+func (w *Walk) iterateImmediateChildren(root Path, algorithmFunction WalkFunc) error {
 	children, err := root.ReadDir()
 	if err != nil {
 		return err
@@ -238,12 +235,12 @@ func (w *Walk) passesQuerySpecification(info os.FileInfo) (bool, error) {
 	return true, nil
 }
 
-func (w *Walk) walkBasic(walkFn WalkFunc, root *Path, currentDepth int) error {
+func (w *Walk) walkBasic(walkFn WalkFunc, root Path, currentDepth int) error {
 	if w.maxDepthReached(currentDepth) {
 		return nil
 	}
 
-	err := w.iterateImmediateChildren(root, func(child *Path, info os.FileInfo, encounteredErr error) error {
+	err := w.iterateImmediateChildren(root, func(child Path, info os.FileInfo, encounteredErr error) error {
 		if IsDir(info.Mode()) {
 			if err := w.walkBasic(walkFn, child, currentDepth+1); err != nil {
 				return err
@@ -268,7 +265,7 @@ func (w *Walk) walkBasic(walkFn WalkFunc, root *Path, currentDepth int) error {
 }
 
 // WalkFunc is the function provided to the Walk function for each directory.
-type WalkFunc func(path *Path, info os.FileInfo, err error) error
+type WalkFunc func(path Path, info os.FileInfo, err error) error
 
 // Walk walks the directory using the algorithm specified in the configuration.
 func (w *Walk) Walk(walkFn WalkFunc) error {
