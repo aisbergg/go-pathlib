@@ -64,7 +64,7 @@ func newPurePathFromParts(flavor flavorer, drive, root string, parts []string) P
 
 // parseParts parses the given path parts into drive, root, and parts.
 func parseParts(paths []string, flavor flavorer) (drive string, root string, parts []string) {
-	parts = make([]string, 0, 10)
+	parts = make([]string, 0, 16)
 	for i, part := range paths {
 		if part == "" {
 			continue
@@ -79,9 +79,23 @@ func parseParts(paths []string, flavor flavorer) (drive string, root string, par
 			drive, root = pdrive, proot
 			parts = append(parts, pdrive+proot)
 		}
-		for _, pp := range strings.Split(prel, flavor.Separator()) {
-			if pp != "" && pp != "." {
-				parts = append(parts, pp)
+		for {
+			// its more efficient to search for path separator manually than
+			// using strings.Split
+			if i := strings.Index(prel, flavor.Separator()); i >= 0 {
+				pp := prel[:i]
+				if pp != "" && pp != "." {
+					parts = append(parts, pp)
+				}
+				if i >= len(prel)-1 {
+					break
+				}
+				prel = prel[i+1:]
+			} else {
+				if prel != "" && prel != "." {
+					parts = append(parts, prel)
+				}
+				break
 			}
 		}
 	}
