@@ -153,24 +153,21 @@ func (p Path) Create() (File, error) {
 
 // Mkdir makes the current dir. If the parents don't exist, an error
 // is returned.
-func (p Path) Mkdir() error {
-	return p.Fs().Mkdir(p.String(), p.DefaultDirMode)
-}
-
-// MkdirMode makes the current dir. If the parents don't exist, an error
-// is returned.
-func (p Path) MkdirMode(perm os.FileMode) error {
-	return p.Fs().Mkdir(p.String(), perm)
+func (p Path) Mkdir(perm ...os.FileMode) error {
+	mode := p.DefaultDirMode
+	if len(perm) > 0 {
+		mode = perm[0]
+	}
+	return p.Fs().Mkdir(p.String(), mode)
 }
 
 // MkdirAll makes all of the directories up to, and including, the given path.
-func (p Path) MkdirAll() error {
-	return p.Fs().MkdirAll(p.String(), p.DefaultDirMode)
-}
-
-// MkdirAllMode makes all of the directories up to, and including, the given path.
-func (p Path) MkdirAllMode(perm os.FileMode) error {
-	return p.Fs().MkdirAll(p.String(), perm)
+func (p Path) MkdirAll(perm ...os.FileMode) error {
+	mode := p.DefaultDirMode
+	if len(perm) > 0 {
+		mode = perm[0]
+	}
+	return p.Fs().MkdirAll(p.String(), mode)
 }
 
 // Open opens a file for read-only, returning it or an error, if any happens.
@@ -181,19 +178,14 @@ func (p Path) Open() (*File, error) {
 	}, err
 }
 
-// OpenFile opens a file using the given flags.
+// OpenFile opens a file using the given flags and (optionally) given mode.
 // See the list of flags at: https://golang.org/pkg/os/#pkg-constants
-func (p Path) OpenFile(flag int) (*File, error) {
-	handle, err := p.Fs().OpenFile(p.String(), flag, p.DefaultFileMode)
-	return &File{
-		File: handle,
-	}, err
-}
-
-// OpenFileMode opens a file using the given flags and the given mode.
-// See the list of flags at: https://golang.org/pkg/os/#pkg-constants
-func (p Path) OpenFileMode(flag int, perm os.FileMode) (*File, error) {
-	handle, err := p.Fs().OpenFile(p.String(), flag, perm)
+func (p Path) OpenFile(flag int, perm ...os.FileMode) (*File, error) {
+	mode := p.DefaultFileMode
+	if len(perm) > 0 {
+		mode = perm[0]
+	}
+	handle, err := p.Fs().OpenFile(p.String(), flag, mode)
 	return &File{
 		File: handle,
 	}, err
@@ -314,18 +306,15 @@ func (p Path) SafeWriteReader(r io.Reader) error {
 	return afero.SafeWriteReader(p.Fs(), p.String(), r)
 }
 
-// WriteFileMode writes the given data to the path (if possible). If the file exists,
-// the file is truncated. If the file is a directory, or the path doesn't exist,
-// an error is returned.
-func (p Path) WriteFileMode(data []byte, perm os.FileMode) error {
-	return afero.WriteFile(p.Fs(), p.String(), data, perm)
-}
-
 // WriteFile writes the given data to the path (if possible). If the file exists,
 // the file is truncated. If the file is a directory, or the path doesn't exist,
 // an error is returned.
-func (p Path) WriteFile(data []byte) error {
-	return afero.WriteFile(p.Fs(), p.String(), data, p.DefaultFileMode)
+func (p Path) WriteFile(data []byte, perm ...os.FileMode) error {
+	mode := p.DefaultFileMode
+	if len(perm) > 0 {
+		mode = perm[0]
+	}
+	return afero.WriteFile(p.Fs(), p.String(), data, mode)
 }
 
 // WriteReader takes a reader and writes the content
