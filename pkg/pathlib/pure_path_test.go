@@ -271,6 +271,10 @@ func TestPurePath_WithName(t *testing.T) {
 	assert.Error(discVal(PP("a/b").WithName("/c")))
 	assert.Error(discVal(PP("a/b").WithName("c/")))
 	assert.Error(discVal(PP("a/b").WithName("c/d")))
+	// original should not change
+	p := PP("a/d.xml")
+	p.WithName("d.png")
+	assert.Equal(PP("a/d.xml"), p)
 }
 
 func TestPurePath_WithStem(t *testing.T) {
@@ -289,6 +293,10 @@ func TestPurePath_WithStem(t *testing.T) {
 	assert.Error(discVal(PP("a/b").WithStem("/c")))
 	assert.Error(discVal(PP("a/b").WithStem("c/")))
 	assert.Error(discVal(PP("a/b").WithStem("c/d")))
+	// original should not change
+	p := PP("a/d.xml")
+	p.WithStem("x")
+	assert.Equal(PP("a/d.xml"), p)
 }
 
 func TestPurePath_WithSuffix(t *testing.T) {
@@ -315,7 +323,10 @@ func TestPurePath_WithSuffix(t *testing.T) {
 	assert.Error(discVal(PP("a/b").WithSuffix("./.d")))
 	assert.Error(discVal(PP("a/b").WithSuffix(".d/.")))
 	assert.Error(discVal(PP("a/b").WithSuffix(sep + "d")))
-
+	// original should not change
+	p := PP("a/d.xml")
+	p.WithSuffix(".png")
+	assert.Equal(PP("a/d.xml"), p)
 }
 
 func TestPurePath_Parent(t *testing.T) {
@@ -496,3 +507,37 @@ func TestPurePosixPath_IsAbsolute(t *testing.T) {
 // PureWindowsPath tests
 //
 // -----------------------------------------------------------------------------
+
+func BenchmarkPurePath(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for i := 0; i < 200; i++ {
+			p := PP("/a/b/c/d/e/f/g/h/i/j")
+			_ = p.Parent().Parent().Parent().Parent().Parent()
+			p2 := PP("/a/b/c")
+			p, err := p.RelativeToPath(p2)
+			if err != nil {
+				b.Error(err)
+			}
+			_, err = p.WithName("foo")
+			_, err = p.WithSuffix(".ooo")
+			p.Clean()
+		}
+	}
+}
+
+func BenchmarkPath(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for i := 0; i < 200; i++ {
+			p := NewPath("/a/b/c/d/e/f/g/h/i/j")
+			_ = p.Parent().Parent().Parent().Parent().Parent()
+			p2 := NewPath("/a/b/c/d/e/f")
+			p, err := p.RelativeToPath(p2)
+			if err != nil {
+				b.Error(err)
+			}
+			_, err = p.WithName("foo")
+			_, err = p.WithSuffix(".ooo")
+			p.Clean()
+		}
+	}
+}

@@ -193,7 +193,10 @@ func (p PurePath) WithName(name string) (PurePath, error) {
 		drive != "" || root != "" || len(parts) != 1 {
 		return PurePath{}, errors.New("invalid name")
 	}
-	return newPurePathFromParts(p.flavor, p.drive, p.root, append(p.parts[:len(p.parts)-1], name)), nil
+	// need to create a array to avoid modifying the original
+	parts = make([]string, len(p.parts))
+	copy(parts, p.parts)
+	return newPurePathFromParts(p.flavor, p.drive, p.root, append(parts[:len(parts)-1], name)), nil
 }
 
 // WithStem returns a new path with the stem changed.
@@ -220,7 +223,10 @@ func (p PurePath) WithSuffix(suffix string) (PurePath, error) {
 	} else {
 		name = name[:len(name)-len(oldSuffix)] + suffix
 	}
-	return newPurePathFromParts(p.flavor, p.drive, p.root, append(p.parts[:len(p.parts)-1], name)), nil
+	// need to create a array to avoid modifying the original
+	parts := make([]string, len(p.parts))
+	copy(parts, p.parts)
+	return newPurePathFromParts(p.flavor, p.drive, p.root, append(parts[:len(parts)-1], name)), nil
 }
 
 // Join joins the current object's path with the given elements and returns
@@ -253,6 +259,7 @@ func (p PurePath) Parent() PurePath {
 	if len(parts) == 1 && (drive != "" || root != "") {
 		return p
 	}
+	// no need to copy parts slice, because underlying array is not modified
 	return newPurePathFromParts(p.flavor, drive, root, parts[:len(parts)-1])
 }
 
@@ -267,6 +274,7 @@ func (p PurePath) Parents() (parents []PurePath) {
 	}
 	parents = make([]PurePath, 0, numParents)
 	for i := len(parts) - 1; i >= len(parts)-numParents; i-- {
+		// no need to copy parts slice, because underlying array is not modified
 		parent := newPurePathFromParts(p.flavor, drive, root, parts[:i])
 		parents = append(parents, parent)
 	}
