@@ -419,8 +419,6 @@ func (p Path) RelativeToPath(others ...Path) (Path, error) {
 //
 // This will fail if the underlying afero filesystem does not implement
 // afero.LinkReader.
-//
-// THIS METHOD IS NOT TYPE SAFE.
 func (p Path) Readlink() (Path, error) {
 	linkReader, ok := p.Fs().(afero.LinkReader)
 	if !ok {
@@ -481,8 +479,6 @@ func resolveAllHelper(path Path) (Path, error) {
 // should be identical to the `readlink -f` command from POSIX OSs.
 // This will fail if the underlying afero filesystem does not implement
 // afero.LinkReader. The path will be returned unchanged on errors.
-//
-// THIS METHOD IS NOT TYPE SAFE.
 func (p Path) ResolveAll() (Path, error) {
 	return resolveAllHelper(p)
 }
@@ -492,8 +488,6 @@ func (p Path) ResolveAll() (Path, error) {
 // afero.Lstater but returns false for the "lstat called" return value.
 //
 // A nil os.FileInfo is returned on errors.
-//
-// THIS METHOD IS NOT TYPE SAFE.
 func (p Path) Lstat() (os.FileInfo, error) {
 	lStater, ok := p.Fs().(afero.Lstater)
 	if !ok {
@@ -514,16 +508,12 @@ func (p Path) Lstat() (os.FileInfo, error) {
 
 // SymlinkStr symlinks to the target location. This will fail if the underlying
 // afero filesystem does not implement afero.Linker.
-//
-// THIS METHOD IS NOT TYPE SAFE.
 func (p Path) SymlinkStr(target string) error {
 	return p.Symlink(copyPathWithPaths(p, target))
 }
 
 // Symlink symlinks to the target location. This will fail if the underlying
 // afero filesystem does not implement afero.Linker.
-//
-// THIS METHOD IS NOT TYPE SAFE.
 func (p Path) Symlink(target Path) error {
 	symlinker, ok := p.fs.(afero.Linker)
 	if !ok {
@@ -594,11 +584,14 @@ func (p Path) Equals(other Path) bool {
 
 // GetLatest returns the file or directory that has the most recent mtime. Only
 // works if this path is a directory and it exists. If the directory is empty,
-// the returned Path object will be nil.
+// an ErrDirectoryEmpty will be returned.
 func (p Path) GetLatest() (Path, error) {
 	files, err := p.ReadDir()
-	if err != nil || len(files) == 0 {
+	if err != nil {
 		return Path{}, err
+	}
+	if len(files) == 0 {
+		return Path{}, ErrDirectoryEmpty
 	}
 
 	greatestFileSeen := p.Join(files[0].Name())

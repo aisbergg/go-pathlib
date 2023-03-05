@@ -14,4 +14,6 @@ var (
 	ErrLstatNotPossible = fmt.Errorf("lstat is not possible")
 	// ErrStopWalk indicates to the Walk function that the walk should be aborted
 	ErrStopWalk = fmt.Errorf("stop filesystem walk")
+	// ErrDirectoryEmpty indicates an empty directory
+	ErrDirectoryEmpty = fmt.Errorf("directory is empty")
 )
