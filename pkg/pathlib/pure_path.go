@@ -65,7 +65,7 @@ func newPurePathFromParts(flavor flavorer, drive, root string, parts []string) P
 // parseParts parses the given path parts into drive, root, and parts.
 func parseParts(paths []string, flavor flavorer) (drive string, root string, parts []string) {
 	parts = make([]string, 0, 16)
-	for i, part := range paths {
+	for _, part := range paths {
 		if part == "" {
 			continue
 		}
@@ -73,12 +73,19 @@ func parseParts(paths []string, flavor flavorer) (drive string, root string, par
 			part = strings.Replace(part, flavor.AltSeparator(), flavor.Separator(), -1)
 		}
 		pdrive, proot, prel := flavor.SplitRoot(part)
-		// only consider the anchor from the first part (differs from Python
-		// implementation)
-		if i == 0 && (pdrive != "" || proot != "") {
+
+		// replace parts, if current part is anchored
+		// e.g. {"a", "Z:\b", "c"} will result in parts containing only "Z:\b" and "c"
+		if pdrive != "" { // if drive is given, replace whole
 			drive, root = pdrive, proot
-			parts = append(parts, pdrive+proot)
+			parts = make([]string, 0, 16)
+			parts = append(parts, drive+root)
+		} else if proot != "" { // if only root is given, replace parts and keep drive
+			root = proot
+			parts = make([]string, 0, 16)
+			parts = append(parts, drive+root)
 		}
+
 		for {
 			// its more efficient to search for path separator manually than
 			// using strings.Split
