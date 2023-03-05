@@ -7,11 +7,11 @@ package pathlib
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/aisbergg/go-pathlib/internal/testutils"
 )
 
 func TestPosixFlavor_SplitRoot(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	flavor := newPosixFlavor()
 	tests := []struct {
 		path     string
@@ -30,19 +30,19 @@ func TestPosixFlavor_SplitRoot(t *testing.T) {
 		{"//a", []string{"", "//", "a"}},
 		{"///a", []string{"", "/", "a"}},
 		{"///a/b", []string{"", "/", "a/b"}},
-		// Paths which look like NT paths aren"t treated specially
+		// Paths which look like NT paths aren't treated specially
 		{"c:/a/b", []string{"", "", "c:/a/b"}},
 		{"\\/a/b", []string{"", "", "\\/a/b"}},
 		{"\\a\\b", []string{"", "", "\\a\\b"}},
 	}
 	for _, test := range tests {
 		drive, root, rel := flavor.SplitRoot(test.path)
-		assert.Equal(test.expected, []string{drive, root, rel})
+		assert.Equal(test.expected, []string{drive, root, rel}, "path '%s', expected '%v', got '%v'", test.path, test.expected, []string{drive, root, rel})
 	}
 }
 
 func TestWindowsFlavor_SplitRoot(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	flavor := newWindowsFlavor()
 	tests := []struct {
 		path     string
@@ -65,13 +65,20 @@ func TestWindowsFlavor_SplitRoot(t *testing.T) {
 		{"\\\\a\\b\\", []string{"\\\\a\\b", "\\", ""}},
 		{"\\\\a\\b\\c\\d", []string{"\\\\a\\b", "\\", "c\\d"}},
 		// These are non-UNC paths (according to ntpath.py and test_ntpath).
-		// However, command.com says such paths are invalid, so it"s
+		// However, command.com says such paths are invalid, so it's
 		// difficult to know what the right semantics are.
 		{"\\\\\\a\\b", []string{"", "\\", "a\\b"}},
 		{"\\\\a", []string{"", "\\", "a"}},
+		// Extended paths.
+		{"\\\\?\\c:\\", []string{"\\\\?\\c:", "\\", ""}},
+		{"\\\\?\\c:\\a", []string{"\\\\?\\c:", "\\", "a"}},
+		{"\\\\?\\c:\\a\\b", []string{"\\\\?\\c:", "\\", "a\\b"}},
+		// Extended UNC paths (format is "\\?\UNC\server\share").
+		{"\\\\?\\UNC\\b\\c", []string{"\\\\?\\UNC\\b\\c", "\\", ""}},
+		{"\\\\?\\UNC\\b\\c\\d", []string{"\\\\?\\UNC\\b\\c", "\\", "d"}},
 	}
 	for _, test := range tests {
 		drive, root, rel := flavor.SplitRoot(test.path)
-		assert.Equal(test.expected, []string{drive, root, rel})
+		assert.Equal(test.expected, []string{drive, root, rel}, "path '%s', expected '%v', got '%v'", test.path, test.expected, []string{drive, root, rel})
 	}
 }

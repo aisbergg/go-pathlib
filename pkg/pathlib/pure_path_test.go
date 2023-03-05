@@ -7,7 +7,7 @@ package pathlib
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/aisbergg/go-pathlib/internal/testutils"
 )
 
 // -----------------------------------------------------------------------------
@@ -17,7 +17,7 @@ import (
 // -----------------------------------------------------------------------------
 
 func TestPurePath_ParseParts(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	flavor := newPosixFlavor()
 	sep := flavor.Separator()
 	tests := []struct {
@@ -44,9 +44,6 @@ func TestPurePath_ParseParts(t *testing.T) {
 		{[]string{"/a/b"}, []string{"", sep, sep, "a", "b"}},
 		{[]string{"/a", "b"}, []string{"", sep, sep, "a", "b"}},
 		{[]string{"/a/", "b"}, []string{"", sep, sep, "a", "b"}},
-		// join also anchored parts
-		{[]string{"a", "/b", "c"}, []string{"", "", "a", "b", "c"}},
-		{[]string{"/a", "/b", "/c"}, []string{"", sep, sep, "a", "b", "c"}},
 	}
 	for _, test := range tests {
 		drive, root, parts := parseParts(test.parts, flavor)
@@ -57,7 +54,7 @@ func TestPurePath_ParseParts(t *testing.T) {
 }
 
 func TestPurePosixPath_ParseParts(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	flavor := newPosixFlavor()
 	tests := []struct {
 		parts    []string
@@ -72,6 +69,9 @@ func TestPurePosixPath_ParseParts(t *testing.T) {
 		{[]string{"c:a"}, []string{"", "", "c:a"}},
 		{[]string{"c:\\a"}, []string{"", "", "c:\\a"}},
 		{[]string{"\\a"}, []string{"", "", "\\a"}},
+		// anchored parts
+		{[]string{"a", "/b", "c"}, []string{"", "/", "/", "b", "c"}},
+		{[]string{"/a", "/b", "/c"}, []string{"", "/", "/", "c"}},
 	}
 	for _, test := range tests {
 		drive, root, parts := parseParts(test.parts, flavor)
@@ -82,7 +82,7 @@ func TestPurePosixPath_ParseParts(t *testing.T) {
 }
 
 func TestPureWindowsPath_ParseParts(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	flavor := newWindowsFlavor()
 	tests := []struct {
 		parts    []string
@@ -145,7 +145,7 @@ func PWP(path ...string) PurePath {
 }
 
 func TestPurePath_String(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal("a", PP("a").String())
 	assert.Equal("a/b", PP("a/b").String())
 	assert.Equal("a/b/c", PP("a/b/c").String())
@@ -155,7 +155,7 @@ func TestPurePath_String(t *testing.T) {
 }
 
 func TestPurePath_AsPosix(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal("a", PP("a").AsPosix())
 	assert.Equal("a/b", PP("a/b").AsPosix())
 	assert.Equal("a/b/c", PP("a/b/c").AsPosix())
@@ -165,13 +165,13 @@ func TestPurePath_AsPosix(t *testing.T) {
 }
 
 func TestPurePath_Drive(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal("", PP("a/b").Drive())
 	assert.Equal("", PP("/a/b").Drive())
 	assert.Equal("", PP("").Drive())
 }
 func TestPurePath_Root(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	sep := PP().flavor.Separator()
 	assert.Equal("", PP("").Root())
 	assert.Equal("", PP("a/b").Root())
@@ -179,7 +179,7 @@ func TestPurePath_Root(t *testing.T) {
 	assert.Equal(sep, PP("/a/b").Root())
 }
 func TestPurePath_Anchor(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	sep := PP().flavor.Separator()
 	assert.Equal("", PP("").Anchor())
 	assert.Equal("", PP("a/b").Anchor())
@@ -188,7 +188,7 @@ func TestPurePath_Anchor(t *testing.T) {
 }
 
 func TestPurePath_Name(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal("", PP("").Name())
 	assert.Equal("", PP(".").Name())
 	assert.Equal("", PP("/").Name())
@@ -200,7 +200,7 @@ func TestPurePath_Name(t *testing.T) {
 }
 
 func TestPurePath_Suffix(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal("", PP("").Suffix())
 	assert.Equal("", PP(".").Suffix())
 	assert.Equal("", PP("..").Suffix())
@@ -221,7 +221,7 @@ func TestPurePath_Suffix(t *testing.T) {
 }
 
 func TestPurePath_Suffixes(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal([]string{}, PP("").Suffixes())
 	assert.Equal([]string{}, PP(".").Suffixes())
 	assert.Equal([]string{}, PP("/").Suffixes())
@@ -240,7 +240,7 @@ func TestPurePath_Suffixes(t *testing.T) {
 	assert.Equal([]string{}, PP("/a/Some name. Ending with a dot.").Suffixes())
 }
 func TestPurePath_Stem(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal("", PP("").Stem())
 	assert.Equal("", PP(".").Stem())
 	assert.Equal("..", PP("..").Stem())
@@ -257,7 +257,7 @@ func discErr(p PurePath, _ error) PurePath { return p }
 func discVal(_ interface{}, e error) error { return e }
 
 func TestPurePath_WithName(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal(PP("a/d.xml"), discErr(PP("a/b").WithName("d.xml")))
 	assert.Equal(PP("/a/d.xml"), discErr(PP("/a/b").WithName("d.xml")))
 	assert.Equal(PP("a/d.xml"), discErr(PP("a/b.py").WithName("d.xml")))
@@ -278,7 +278,7 @@ func TestPurePath_WithName(t *testing.T) {
 }
 
 func TestPurePath_WithStem(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.Equal(PP("a/d"), discErr(PP("a/b").WithStem("d")))
 	assert.Equal(PP("/a/d"), discErr(PP("/a/b").WithStem("d")))
 	assert.Equal(PP("a/d.py"), discErr(PP("a/b.py").WithStem("d")))
@@ -300,7 +300,7 @@ func TestPurePath_WithStem(t *testing.T) {
 }
 
 func TestPurePath_WithSuffix(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	sep := PP().flavor.Separator()
 	assert.Equal(PP("a/b.gz"), discErr(PP("a/b").WithSuffix(".gz")))
 	assert.Equal(PP("/a/b.gz"), discErr(PP("/a/b").WithSuffix(".gz")))
@@ -330,7 +330,7 @@ func TestPurePath_WithSuffix(t *testing.T) {
 }
 
 func TestPurePath_Parent(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	// relative
 	p := PP("a/b/c")
 	assert.Equal(PP("a/b"), p.Parent())
@@ -346,7 +346,7 @@ func TestPurePath_Parent(t *testing.T) {
 }
 
 func TestPurePath_Parents(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	// relative
 	p := PP("a/b/c")
 	par := p.Parents()
@@ -359,7 +359,7 @@ func TestPurePath_Parents(t *testing.T) {
 }
 
 func TestPurePath_Match(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	// simple relative pattern
 	assert.True(PP("b.py").Match("b.py"))
 	assert.True(PP("a/b.py").Match("b.py"))
@@ -402,7 +402,7 @@ func TestPurePath_Match(t *testing.T) {
 }
 
 func TestPurePath_RelativeTo(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	p := PP("a/b")
 	assert.Error(discVal(p.RelativeTo()))
 	assert.Equal(PP("a/b"), discErr(p.RelativeToPath(PP())))
@@ -437,7 +437,7 @@ func TestPurePath_RelativeTo(t *testing.T) {
 }
 
 func TestPurePath_IsRelativeTo(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	p := PP("a/b")
 	assert.Error(discVal(p.IsRelativeTo()))
 	assert.True(p.IsRelativeToPath(PP()))
@@ -471,7 +471,7 @@ func TestPurePath_IsRelativeTo(t *testing.T) {
 }
 
 func TestPurePath_Join(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	p := PP("a/b")
 	pp := p.Join("c")
 	assert.Equal(PP("a/b/c"), pp)
@@ -481,7 +481,7 @@ func TestPurePath_Join(t *testing.T) {
 	pp = p.JoinPath(PP("c"))
 	assert.Equal(PP("a/b/c"), pp)
 	pp = p.Join("/c")
-	assert.Equal(PP("a/b/c"), pp) // different from Python's pathlib
+	assert.Equal(PP("/c"), pp)
 }
 
 // -----------------------------------------------------------------------------
@@ -491,7 +491,7 @@ func TestPurePath_Join(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPurePosixPath_IsAbsolute(t *testing.T) {
-	assert := assert.New(t)
+	assert := testutils.NewAssert(t)
 	assert.False(PPP().IsAbsolute())
 	assert.False(PPP("a").IsAbsolute())
 	assert.False(PPP("a/b/").IsAbsolute())
@@ -508,29 +508,18 @@ func TestPurePosixPath_IsAbsolute(t *testing.T) {
 //
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+//
+// Benchmarks
+//
+// -----------------------------------------------------------------------------
+
 func BenchmarkPurePath(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for i := 0; i < 200; i++ {
 			p := PP("/a/b/c/d/e/f/g/h/i/j")
 			_ = p.Parent().Parent().Parent().Parent().Parent()
 			p2 := PP("/a/b/c")
-			p, err := p.RelativeToPath(p2)
-			if err != nil {
-				b.Error(err)
-			}
-			_, err = p.WithName("foo")
-			_, err = p.WithSuffix(".ooo")
-			p.Clean()
-		}
-	}
-}
-
-func BenchmarkPath(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		for i := 0; i < 200; i++ {
-			p := NewPath("/a/b/c/d/e/f/g/h/i/j")
-			_ = p.Parent().Parent().Parent().Parent().Parent()
-			p2 := NewPath("/a/b/c/d/e/f")
 			p, err := p.RelativeToPath(p2)
 			if err != nil {
 				b.Error(err)

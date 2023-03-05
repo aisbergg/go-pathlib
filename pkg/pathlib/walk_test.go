@@ -3,184 +3,232 @@ package pathlib
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 
+	"github.com/aisbergg/go-pathlib/internal/testutils"
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
-// *********
-// * TESTS *
-// *********
-
-// WalkSuiteAll is a set of tests that should be run
-// for all walk algorithms. It asserts the behaviors that
-// are identical between all algorithms.
-type WalkSuiteAll struct {
-	suite.Suite
-	walk      *Walk
-	root      Path
-	algorithm Algorithm
-	Fs        afero.Fs
+var algorithms = []struct {
+	name string
+	alg  Algorithm
+}{
+	{name: "AlgorithmBasic", alg: AlgorithmBasic},
+	{name: "AlgorithmDepthFirst", alg: AlgorithmDepthFirst},
 }
 
-func (w *WalkSuiteAll) SetupTest() {
-	var err error
-
+func setupWalkTest(t *testing.T, algorithm Algorithm) *Walk {
 	tmpdir, err := ioutil.TempDir("", "")
-	require.NoError(w.T(), err)
-
-	w.Fs = afero.NewOsFs()
-	w.root = NewPathWithFS(w.Fs, tmpdir)
-	w.walk, err = NewWalk(w.root)
-	require.NoError(w.T(), err)
-	w.walk.Opts.Algorithm = w.algorithm
-}
-
-func (w *WalkSuiteAll) TeardownTest() {
-	require.NoError(w.T(), w.root.RemoveAll())
-}
-
-func (w *WalkSuiteAll) TestHello() {
-	require.NoError(w.T(), HelloWorld(w.root))
-
-	walkFunc := MockWalkFunc{}
-	walkFunc.On("Execute", mock.Anything, mock.Anything, nil).Return(nil)
-	w.NoError(w.walk.Walk(walkFunc.Execute))
-	walkFunc.AssertExpectations(w.T())
-}
-
-func (w *WalkSuiteAll) TestTwoFiles() {
-	require.NoError(w.T(), NFiles(w.root, 2))
-
-	walkFunc := MockWalkFunc{}
-	walkFunc.On("Execute", mock.Anything, mock.Anything, nil).Return(nil)
-	w.NoError(w.walk.Walk(walkFunc.Execute))
-	walkFunc.AssertExpectations(w.T())
-	walkFunc.AssertNumberOfCalls(w.T(), "Execute", 2)
-}
-
-func (w *WalkSuiteAll) TestTwoFilesNested() {
-	require.NoError(w.T(), TwoFilesAtRootTwoInSubdir(w.root))
-
-	walkFunc := MockWalkFunc{}
-	walkFunc.On("Execute", mock.Anything, mock.Anything, nil).Return(nil)
-	w.NoError(w.walk.Walk(walkFunc.Execute))
-	walkFunc.AssertExpectations(w.T())
-	walkFunc.AssertNumberOfCalls(w.T(), "Execute", 5)
-}
-
-func (w *WalkSuiteAll) TestZeroDepth() {
-	w.walk.Opts.Depth = 0
-	w.walk.Opts.FollowSymlinks = true
-	require.NoError(w.T(), TwoFilesAtRootTwoInSubdir(w.root))
-
-	walkFunc := MockWalkFunc{}
-	walkFunc.On("Execute", mock.Anything, mock.Anything, nil).Return(nil)
-	w.NoError(w.walk.Walk(walkFunc.Execute))
-	walkFunc.AssertExpectations(w.T())
-
-	// WalkFunc should be called three times because there are two files and
-	// one subdir.
-	walkFunc.AssertNumberOfCalls(w.T(), "Execute", 3)
-}
-
-func (w *WalkSuiteAll) TestStopWalk() {
-	require.NoError(w.T(), TwoFilesAtRootTwoInSubdir(w.root))
-
-	walkFunc := MockWalkFunc{}
-	walkFunc.On("Execute", mock.Anything, mock.Anything, nil).Return(ErrStopWalk)
-	w.NoError(w.walk.Walk(walkFunc.Execute))
-	walkFunc.AssertExpectations(w.T())
-	walkFunc.AssertNumberOfCalls(w.T(), "Execute", 1)
-}
-
-func (w *WalkSuiteAll) TestWalkFuncErr() {
-	require.NoError(w.T(), TwoFilesAtRootTwoInSubdir(w.root))
-
-	wantErr := fmt.Errorf("Aww shoot")
-	walkFunc := MockWalkFunc{}
-	walkFunc.On("Execute", mock.Anything, mock.Anything, nil).Return(wantErr)
-	w.EqualError(w.walk.Walk(walkFunc.Execute), wantErr.Error(), "did not receive the expected err")
-	walkFunc.AssertExpectations(w.T())
-	walkFunc.AssertNumberOfCalls(w.T(), "Execute", 1)
-}
-
-func (w *WalkSuiteAll) TestPassesQuerySpecification() {
-	file := w.root.Join("file.txt")
-	require.NoError(w.T(), file.WriteFile([]byte("hello")))
-
-	stat, err := file.Stat()
-	require.NoError(w.T(), err)
-
-	// File tests
-	w.walk.Opts.VisitFiles = false
-	passes, err := w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.False(passes, "specified to not visit files, but passed anyway")
-
-	w.walk.Opts.VisitFiles = true
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.True(passes, "specified to visit files, but didn't pass")
-
-	w.walk.Opts.MinimumFileSize = 100
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.False(passes, "specified large file size, but passed anyway")
-
-	w.walk.Opts.MinimumFileSize = 0
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.True(passes, "specified smallfile size, but didn't pass")
-
-	// Directory tests
-	dir := w.root.Join("subdir")
-	require.NoError(w.T(), dir.MkdirAll())
-
-	stat, err = dir.Stat()
-	require.NoError(w.T(), err)
-
-	w.walk.Opts.VisitDirs = false
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.False(passes, "specified to not visit directories, but passed anyway")
-
-	w.walk.Opts.VisitDirs = true
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.True(passes, "specified to visit directories, but didn't pass")
-
-	// Symlink tests
-	symlink := w.root.Join("symlink")
-	require.NoError(w.T(), symlink.Symlink(file))
-
-	stat, err = symlink.Lstat()
-	require.NoError(w.T(), err)
-
-	w.walk.Opts.VisitSymlinks = false
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.False(passes, "specified to not visit symlinks, but passed anyway")
-
-	w.walk.Opts.VisitSymlinks = true
-	passes, err = w.walk.passesQuerySpecification(stat)
-	require.NoError(w.T(), err)
-	w.True(passes, "specified to visit symlinks, but didn't pass")
-}
-
-func TestWalkSuite(t *testing.T) {
-	for _, algorithm := range []Algorithm{
-		AlgorithmBasic,
-		AlgorithmDepthFirst,
-	} {
-		walkSuite := new(WalkSuiteAll)
-		walkSuite.algorithm = algorithm
-		suite.Run(t, walkSuite)
+	if err != nil {
+		t.FailNow()
 	}
+	fs := afero.NewOsFs()
+	root := NewPathWithFS(fs, tmpdir)
+	walk, err := NewWalk(root)
+	if err != nil {
+		t.FailNow()
+	}
+	walk.Opts.Algorithm = algorithm
+	return walk
+}
+
+func teardownWalkTest(t *testing.T, walk *Walk) {
+	testutils.NewRequire(t).NoError(walk.root.RemoveAll())
+}
+
+func testWalkScenario(t *testing.T, w *Walk, expCalled int, throwErr, expErr error) {
+	assert := testutils.NewAssert(t)
+	require := testutils.NewRequire(t)
+	numCalled := 0
+	walkFunc := func(path Path, info os.FileInfo, err error) error {
+		numCalled++
+		return throwErr
+	}
+	err := w.Walk(walkFunc)
+	if expErr == nil {
+		require.NoError(err)
+	} else {
+		assert.EqualError(expErr, err)
+	}
+	if numCalled != expCalled {
+		t.Errorf("expected walk function to be called %d times, actually called %d times", expCalled, numCalled)
+	}
+}
+
+func TestHello(t *testing.T) {
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+		require.NoError(HelloWorld(w.root))
+		testWalkScenario(t, w, 1, nil, nil)
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+}
+
+func TestTwoFiles(t *testing.T) {
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+		require.NoError(NFiles(w.root, 2))
+		testWalkScenario(t, w, 2, nil, nil)
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+}
+
+func TestTwoFilesNested(t *testing.T) {
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+		require.NoError(TwoFilesAtRootTwoInSubdir(w.root))
+		testWalkScenario(t, w, 5, nil, nil)
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+}
+
+func TestZeroDepth(t *testing.T) {
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+		w.Opts.Depth = 0
+		w.Opts.FollowSymlinks = true
+		require.NoError(TwoFilesAtRootTwoInSubdir(w.root))
+		testWalkScenario(t, w, 3, nil, nil)
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+}
+
+func TestStopWalk(t *testing.T) {
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+		w.Opts.Depth = 0
+		w.Opts.FollowSymlinks = true
+		require.NoError(TwoFilesAtRootTwoInSubdir(w.root))
+		testWalkScenario(t, w, 1, ErrStopWalk, nil)
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+}
+
+func TestWalkFuncErr(t *testing.T) {
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+		w.Opts.Depth = 0
+		w.Opts.FollowSymlinks = true
+		require.NoError(TwoFilesAtRootTwoInSubdir(w.root))
+		err := fmt.Errorf("oh no")
+		testWalkScenario(t, w, 1, err, err)
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+}
+
+func TestPassesQuerySpecification(t *testing.T) {
+	assert := testutils.NewAssert(t)
+	require := testutils.NewRequire(t)
+	tf := func(t *testing.T, alg Algorithm) {
+		w := setupWalkTest(t, alg)
+		defer teardownWalkTest(t, w)
+
+		file := w.root.Join("file.txt")
+		err := file.WriteFile([]byte("hello"))
+		require.NoError(err)
+
+		stat, err := file.Stat()
+		require.NoError(err)
+
+		// File tests
+		w.Opts.VisitFiles = false
+		passes, err := w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.False(passes, "specified to not visit files, but passed anyway")
+
+		w.Opts.VisitFiles = true
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.True(passes, "specified to visit files, but didn't pass")
+
+		w.Opts.MinimumFileSize = 100
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.False(passes, "specified large file size, but passed anyway")
+
+		w.Opts.MinimumFileSize = 0
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.True(passes, "specified smallfile size, but didn't pass")
+
+		// Directory tests
+		dir := w.root.Join("subdir")
+		require.NoError(dir.MkdirAll())
+
+		stat, err = dir.Stat()
+		require.NoError(err)
+
+		w.Opts.VisitDirs = false
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.False(passes, "specified to not visit directories, but passed anyway")
+
+		w.Opts.VisitDirs = true
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.True(passes, "specified to visit directories, but didn't pass")
+
+		// Symlink tests
+		symlink := w.root.Join("symlink")
+		require.NoError(symlink.Symlink(file))
+
+		stat, err = symlink.Lstat()
+		require.NoError(err)
+
+		w.Opts.VisitSymlinks = false
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.False(passes, "specified to not visit symlinks, but passed anyway")
+
+		w.Opts.VisitSymlinks = true
+		passes, err = w.passesQuerySpecification(stat)
+		require.NoError(err)
+		assert.True(passes, "specified to visit symlinks, but didn't pass")
+	}
+	for _, a := range algorithms {
+		t.Run(a.name, func(t *testing.T) {
+			tf(t, a.alg)
+		})
+	}
+
 }
 
 func TestDefaultWalkOpts(t *testing.T) {

@@ -11,359 +11,422 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aisbergg/go-pathlib/internal/testutils"
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
-type PathSuite struct {
-	suite.Suite
-	tmpdir Path
-}
+func setupPathTest(t *testing.T) (testutils.Assertions, testutils.Assertions, Path) {
+	assert := testutils.NewAssert(t)
+	require := testutils.NewRequire(t)
 
-func (p PathSuite) SetupTest() {
 	// We actually can't use the MemMapFs because some of the tests
 	// are testing symlink behavior. We might want to split these
 	// tests out to use MemMapFs when possible.
 	tmpdir, err := ioutil.TempDir("", "")
-	require.NoError(p.T(), err)
-	p.tmpdir = NewPath(tmpdir)
+	testutils.NewRequire(t).NoError(err)
+	return assert, require, NewPath(tmpdir)
 }
 
-func (p PathSuite) TeardownTest() {
-	assert.NoError(p.T(), p.tmpdir.RemoveAll())
+func teardownPathTest(t *testing.T, tmpdir Path) {
+	testutils.NewAssert(t).NoError(tmpdir.RemoveAll())
 }
 
-// -----------------------------------------------------------------------------
-//
-// test reimplemented pathlib.PurePath-like methods
-//
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-//
-// test XXX
-//
-// -----------------------------------------------------------------------------
-
-func (p PathSuite) TestSymlink() {
-	symlink := p.tmpdir.Join("symlink")
-	require.NoError(p.T(), symlink.Symlink(p.tmpdir))
+func TestSymlink(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	symlink := tmpdir.Join("symlink")
+	require.NoError(symlink.Symlink(tmpdir))
 
 	linkLocation, err := symlink.Readlink()
-	require.NoError(p.T(), err)
-	assert.Equal(p.T(), p.tmpdir.String(), linkLocation.String())
+	require.NoError(err)
+	assert.Equal(tmpdir.String(), linkLocation.String())
 }
 
-func (p PathSuite) TestSymlinkBadFs() {
-	symlink := p.tmpdir.Join("symlink")
+func TestSymlinkBadFs(t *testing.T) {
+	assert, _, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	symlink := tmpdir.Join("symlink")
 	symlink.fs = afero.NewMemMapFs()
 
-	assert.Error(p.T(), symlink.Symlink(p.tmpdir))
+	assert.Error(symlink.Symlink(tmpdir))
 }
 
-func (p PathSuite) TestJoin() {
-	joined := p.tmpdir.Join("test1")
-	assert.Equal(p.T(), filepath.Join(p.tmpdir.String(), "test1"), joined.String())
+func TestJoin(t *testing.T) {
+	assert, _, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	joined := tmpdir.Join("test1")
+	assert.Equal(filepath.Join(tmpdir.String(), "test1"), joined.String())
 }
 
-func (p PathSuite) TestWriteAndRead() {
+func TestWriteAndRead(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
 	expectedBytes := []byte("hello world!")
-	file := p.tmpdir.Join("test.txt")
-	require.NoError(p.T(), file.WriteFile(expectedBytes))
+	file := tmpdir.Join("test.txt")
+	require.NoError(file.WriteFile(expectedBytes))
 	bytes, err := file.ReadFile()
-	require.NoError(p.T(), err)
-	assert.Equal(p.T(), expectedBytes, bytes)
+	require.NoError(err)
+	assert.Equal(expectedBytes, bytes)
 }
 
-func (p PathSuite) TestChmod() {
-	file := p.tmpdir.Join("file1.txt")
-	require.NoError(p.T(), file.WriteFile([]byte("")))
+func TestChmod(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file := tmpdir.Join("file1.txt")
+	require.NoError(file.WriteFile([]byte("")))
 
 	file.Chmod(0o777)
 	fileInfo, err := file.Stat()
-	require.NoError(p.T(), err)
+	require.NoError(err)
 
-	assert.Equal(p.T(), os.FileMode(0o777), fileInfo.Mode()&os.ModePerm)
+	assert.Equal(os.FileMode(0o777), fileInfo.Mode()&os.ModePerm)
 
 	file.Chmod(0o755)
 	fileInfo, err = file.Stat()
-	require.NoError(p.T(), err)
+	require.NoError(err)
 
-	assert.Equal(p.T(), os.FileMode(0o755), fileInfo.Mode()&os.ModePerm)
+	assert.Equal(os.FileMode(0o755), fileInfo.Mode()&os.ModePerm)
 }
 
-func (p PathSuite) TestMkdir() {
-	subdir := p.tmpdir.Join("subdir")
-	assert.NoError(p.T(), subdir.Mkdir())
+func TestMkdir(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	subdir := tmpdir.Join("subdir")
+	assert.NoError(subdir.Mkdir())
 	isDir, err := subdir.IsDir()
-	require.NoError(p.T(), err)
-	assert.True(p.T(), isDir)
+	require.NoError(err)
+	assert.True(isDir)
 }
 
-func (p PathSuite) TestMkdirParentsDontExist() {
-	subdir := p.tmpdir.Join("subdir1", "subdir2")
-	assert.Error(p.T(), subdir.Mkdir())
+func TestMkdirParentsDontExist(t *testing.T) {
+	assert, _, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	subdir := tmpdir.Join("subdir1", "subdir2")
+	assert.Error(subdir.Mkdir())
 }
 
-func (p PathSuite) TestMkdirAll() {
-	subdir := p.tmpdir.Join("subdir")
-	assert.NoError(p.T(), subdir.MkdirAll())
+func TestMkdirAll(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	subdir := tmpdir.Join("subdir")
+	assert.NoError(subdir.MkdirAll())
 	isDir, err := subdir.IsDir()
-	require.NoError(p.T(), err)
-	assert.True(p.T(), isDir)
+	require.NoError(err)
+	assert.True(isDir)
 }
 
-func (p PathSuite) TestMkdirAllMultipleSubdirs() {
-	subdir := p.tmpdir.Join("subdir1", "subdir2", "subdir3")
-	assert.NoError(p.T(), subdir.MkdirAll())
+func TestMkdirAllMultipleSubdirs(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	subdir := tmpdir.Join("subdir1", "subdir2", "subdir3")
+	assert.NoError(subdir.MkdirAll())
 	isDir, err := subdir.IsDir()
-	require.NoError(p.T(), err)
-	assert.True(p.T(), isDir)
+	require.NoError(err)
+	assert.True(isDir)
 }
 
-func (p PathSuite) TestRenameString() {
-	file := p.tmpdir.Join("file.txt")
-	require.NoError(p.T(), file.WriteFile([]byte("hello world!")))
+func TestRenameString(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file := tmpdir.Join("file.txt")
+	require.NoError(file.WriteFile([]byte("hello world!")))
 
-	newPath := p.tmpdir.Join("file2.txt")
+	newPath := tmpdir.Join("file2.txt")
 
 	renamedPath, err := file.RenamePath(newPath)
-	assert.NoError(p.T(), err)
-	assert.Equal(p.T(), renamedPath.String(), p.tmpdir.Join("file2.txt").String())
+	assert.NoError(err)
+	assert.Equal(renamedPath.String(), tmpdir.Join("file2.txt").String())
 
 	newBytes, err := renamedPath.ReadFile()
-	require.NoError(p.T(), err)
-	assert.Equal(p.T(), []byte("hello world!"), newBytes)
+	require.NoError(err)
+	assert.Equal([]byte("hello world!"), newBytes)
 
 	renamedFileExists, err := renamedPath.Exists()
-	require.NoError(p.T(), err)
-	assert.True(p.T(), renamedFileExists)
+	require.NoError(err)
+	assert.True(renamedFileExists)
 
-	oldFileExists, err := p.tmpdir.Join("file.txt").Exists()
-	require.NoError(p.T(), err)
-	assert.False(p.T(), oldFileExists)
+	oldFileExists, err := tmpdir.Join("file.txt").Exists()
+	require.NoError(err)
+	assert.False(oldFileExists)
 }
 
-func (p PathSuite) TestSizeZero() {
-	file := p.tmpdir.Join("file.txt")
-	require.NoError(p.T(), file.WriteFile([]byte{}))
+func TestSizeZero(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file := tmpdir.Join("file.txt")
+	require.NoError(file.WriteFile([]byte{}))
 	size, err := file.Size()
-	require.NoError(p.T(), err)
-	p.Zero(size)
+	require.NoError(err)
+	assert.Equal(size, int64(0))
 }
 
-func (p PathSuite) TestSizeNonZero() {
+func TestSizeNonZero(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
 	msg := "oh, it's you"
-	file := p.tmpdir.Join("file.txt")
-	require.NoError(p.T(), file.WriteFile([]byte(msg)))
+	file := tmpdir.Join("file.txt")
+	require.NoError(file.WriteFile([]byte(msg)))
 	size, err := file.Size()
-	require.NoError(p.T(), err)
-	p.Equal(len(msg), int(size))
+	require.NoError(err)
+	assert.Equal(len(msg), int(size))
 }
 
-func (p PathSuite) TestIsDir() {
-	dir := p.tmpdir.Join("dir")
-	require.NoError(p.T(), dir.Mkdir())
+func TestIsDir(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	dir := tmpdir.Join("dir")
+	require.NoError(dir.Mkdir())
 	isDir, err := dir.IsDir()
-	require.NoError(p.T(), err)
-	p.True(isDir)
+	require.NoError(err)
+	assert.True(isDir)
 }
 
-func (p PathSuite) TestIsntDir() {
-	file := p.tmpdir.Join("file.txt")
-	require.NoError(p.T(), file.WriteFile([]byte("hello world!")))
+func TestIsntDir(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file := tmpdir.Join("file.txt")
+	require.NoError(file.WriteFile([]byte("hello world!")))
 	isDir, err := file.IsDir()
-	require.NoError(p.T(), err)
-	p.False(isDir)
+	require.NoError(err)
+	assert.False(isDir)
 }
 
-func (p PathSuite) TestGetLatest() {
+func TestGetLatest(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
 	now := time.Now()
 	for i := 0; i < 5; i++ {
-		file := p.tmpdir.Join(fmt.Sprintf("file%d.txt", i))
-		require.NoError(p.T(), file.WriteFile([]byte(fmt.Sprintf("hello %d", i))))
-		require.NoError(p.T(), file.Chtimes(now, now))
+		file := tmpdir.Join(fmt.Sprintf("file%d.txt", i))
+		require.NoError(file.WriteFile([]byte(fmt.Sprintf("hello %d", i))))
+		require.NoError(file.Chtimes(now, now))
 		now = now.Add(time.Duration(1) * time.Hour)
 	}
 
-	latest, err := p.tmpdir.GetLatest()
-	require.NoError(p.T(), err)
+	latest, err := tmpdir.GetLatest()
+	require.NoError(err)
 
-	assert.Equal(p.T(), "file4.txt", latest.Name())
+	assert.Equal("file4.txt", latest.Name())
 }
 
-func (p PathSuite) TestGetLatestEmpty() {
-	latest, err := p.tmpdir.GetLatest()
-	require.NoError(p.T(), err)
-	assert.Nil(p.T(), latest)
+func TestGetLatestEmpty(t *testing.T) {
+	assert, _, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	_, err := tmpdir.GetLatest()
+	assert.EqualError(ErrDirectoryEmpty, err)
 }
 
-func (p PathSuite) TestOpen() {
+func TestOpen(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
 	msg := "cubs > cardinals"
-	file := p.tmpdir.Join("file.txt")
-	require.NoError(p.T(), file.WriteFile([]byte(msg)))
+	file := tmpdir.Join("file.txt")
+	require.NoError(file.WriteFile([]byte(msg)))
 	fileHandle, err := file.Open()
-	require.NoError(p.T(), err)
+	require.NoError(err)
 
 	readBytes := make([]byte, len(msg)+5)
 	n, err := fileHandle.Read(readBytes)
-	p.Equal(len(msg), n)
-	p.Equal(msg, string(readBytes[0:n]))
+	assert.Equal(len(msg), n)
+	assert.Equal(msg, string(readBytes[0:n]))
 }
 
-func (p PathSuite) TestOpenFile() {
-	file := p.tmpdir.Join("file.txt")
+func TestOpenFile(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file := tmpdir.Join("file.txt")
 	fileHandle, err := file.OpenFile(os.O_RDWR | os.O_CREATE)
-	require.NoError(p.T(), err)
+	require.NoError(err)
 
 	msg := "do you play croquet?"
 	n, err := fileHandle.WriteString(msg)
-	p.Equal(len(msg), n)
-	p.NoError(err)
+	assert.Equal(len(msg), n)
+	assert.NoError(err)
 
 	bytes := make([]byte, len(msg)+5)
 	n, err = fileHandle.ReadAt(bytes, 0)
-	p.Equal(len(msg), n)
-	p.True(errors.Is(err, io.EOF))
-	p.Equal(msg, string(bytes[0:n]))
+	assert.Equal(len(msg), n)
+	assert.True(errors.Is(err, io.EOF))
+	assert.Equal(msg, string(bytes[0:n]))
 }
 
-func (p PathSuite) TestDirExists() {
-	dir1 := p.tmpdir.Join("subdir")
+func TestDirExists(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	dir1 := tmpdir.Join("subdir")
 	exists, err := dir1.DirExists()
-	require.NoError(p.T(), err)
-	p.False(exists)
+	require.NoError(err)
+	assert.False(exists)
 
-	require.NoError(p.T(), dir1.Mkdir())
+	require.NoError(dir1.Mkdir())
 	exists, err = dir1.DirExists()
-	require.NoError(p.T(), err)
-	p.True(exists)
+	require.NoError(err)
+	assert.True(exists)
 }
 
-func (p PathSuite) TestIsFile() {
-	file1 := p.tmpdir.Join("file.txt")
+func TestIsFile(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file1 := tmpdir.Join("file.txt")
 
-	require.NoError(p.T(), file1.WriteFile([]byte("")))
+	require.NoError(file1.WriteFile([]byte("")))
 	exists, err := file1.IsFile()
-	require.NoError(p.T(), err)
-	p.True(exists)
+	require.NoError(err)
+	assert.True(exists)
 }
 
-func (p PathSuite) TestIsEmpty() {
-	file1 := p.tmpdir.Join("file.txt")
+func TestIsEmpty(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file1 := tmpdir.Join("file.txt")
 
-	require.NoError(p.T(), file1.WriteFile([]byte("")))
+	require.NoError(file1.WriteFile([]byte("")))
 	isEmpty, err := file1.IsEmpty()
-	require.NoError(p.T(), err)
-	p.True(isEmpty)
+	require.NoError(err)
+	assert.True(isEmpty)
 }
 
-func (p PathSuite) TestIsSymlink() {
-	file1 := p.tmpdir.Join("file.txt")
-	require.NoError(p.T(), file1.WriteFile([]byte("")))
+func TestIsSymlink(t *testing.T) {
+	require := testutils.NewRequire(t)
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	file1 := tmpdir.Join("file.txt")
+	require.NoError(file1.WriteFile([]byte("")))
 
-	symlink := p.tmpdir.Join("symlink")
-	p.NoError(symlink.Symlink(file1))
+	symlink := tmpdir.Join("symlink")
+	assert.NoError(symlink.Symlink(file1))
 	isSymlink, err := symlink.IsSymlink()
-	require.NoError(p.T(), err)
-	p.True(isSymlink)
+	require.NoError(err)
+	assert.True(isSymlink)
 
 	stat, _ := symlink.Stat()
-	p.T().Logf("%v", stat.Mode())
-	p.T().Logf(symlink.String())
+	t.Logf("%v", stat.Mode())
+	t.Logf(symlink.String())
 }
 
-func (p PathSuite) TestResolveAll() {
-	home := p.tmpdir.Join("mnt", "nfs", "data", "users", "home", "LandonTClipp")
-	require.NoError(p.T(), home.MkdirAll())
-	require.NoError(p.T(), p.tmpdir.Join("mnt", "nfs", "symlinks").MkdirAll())
-	require.NoError(p.T(), p.tmpdir.Join("mnt", "nfs", "symlinks", "home").Symlink(NewPath("../data/users/home")))
-	require.NoError(p.T(), p.tmpdir.Join("home").Symlink(NewPath("./mnt/nfs/symlinks/home")))
+func TestResolveAll(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	home := tmpdir.Join("mnt", "nfs", "data", "users", "home", "LandonTClipp")
+	require.NoError(home.MkdirAll())
+	require.NoError(tmpdir.Join("mnt", "nfs", "symlinks").MkdirAll())
+	require.NoError(tmpdir.Join("mnt", "nfs", "symlinks", "home").Symlink(NewPath("../data/users/home")))
+	require.NoError(tmpdir.Join("home").Symlink(NewPath("./mnt/nfs/symlinks/home")))
 
-	resolved, err := p.tmpdir.Join("home/LandonTClipp").ResolveAll()
-	p.T().Log(resolved.String())
-	require.NoError(p.T(), err)
+	resolved, err := tmpdir.Join("home/LandonTClipp").ResolveAll()
+	t.Log(resolved.String())
+	require.NoError(err)
 
 	homeResolved, err := home.ResolveAll()
-	require.NoError(p.T(), err)
+	require.NoError(err)
 
-	p.Equal(homeResolved.Clean().String(), resolved.Clean().String())
+	assert.Equal(homeResolved.Clean().String(), resolved.Clean().String())
 }
 
-func (p PathSuite) TestResolveAllAbsolute() {
-	require.NoError(p.T(), p.tmpdir.Join("mnt", "nfs", "data", "users", "home", "LandonTClipp").MkdirAll())
-	require.NoError(p.T(), p.tmpdir.Join("mnt", "nfs", "symlinks").MkdirAll())
-	require.NoError(p.T(), p.tmpdir.Join("mnt", "nfs", "symlinks", "home").Symlink(p.tmpdir.Join("mnt", "nfs", "data", "users", "home")))
-	require.NoError(p.T(), p.tmpdir.Join("home").Symlink(NewPath("./mnt/nfs/symlinks/home")))
+func TestResolveAllAbsolute(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	require.NoError(tmpdir.Join("mnt", "nfs", "data", "users", "home", "LandonTClipp").MkdirAll())
+	require.NoError(tmpdir.Join("mnt", "nfs", "symlinks").MkdirAll())
+	require.NoError(tmpdir.Join("mnt", "nfs", "symlinks", "home").Symlink(tmpdir.Join("mnt", "nfs", "data", "users", "home")))
+	require.NoError(tmpdir.Join("home").Symlink(NewPath("./mnt/nfs/symlinks/home")))
 
-	resolved, err := p.tmpdir.Join("home", "LandonTClipp").ResolveAll()
-	p.NoError(err)
+	resolved, err := tmpdir.Join("home", "LandonTClipp").ResolveAll()
+	assert.NoError(err)
 	resolvedParts := resolved.Parts()
-	p.Equal(
+	assert.Equal(
 		strings.Join(
 			[]string{"mnt", "nfs", "data", "users", "home", "LandonTClipp"}, resolved.flavor.Separator(),
 		),
 		strings.Join(resolvedParts[len(resolvedParts)-6:], resolved.flavor.Separator()))
 }
 
-func (p PathSuite) TestEquals() {
-	hello1 := p.tmpdir.Join("hello", "world")
-	require.NoError(p.T(), hello1.MkdirAll())
-	hello2 := p.tmpdir.Join("hello", "world")
-	require.NoError(p.T(), hello2.MkdirAll())
+func TestEquals(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	hello1 := tmpdir.Join("hello", "world")
+	require.NoError(hello1.MkdirAll())
+	hello2 := tmpdir.Join("hello", "world")
+	require.NoError(hello2.MkdirAll())
 
-	p.True(hello1.Equals(hello2))
+	assert.True(hello1.Equals(hello2))
 }
 
-func (p PathSuite) TestDeepEquals() {
-	hello := p.tmpdir.Join("hello.txt")
-	require.NoError(p.T(), hello.WriteFile([]byte("hello")))
-	symlink := p.tmpdir.Join("symlink")
-	require.NoError(p.T(), symlink.Symlink(hello))
+func TestDeepEquals(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	hello := tmpdir.Join("hello.txt")
+	require.NoError(hello.WriteFile([]byte("hello")))
+	symlink := tmpdir.Join("symlink")
+	require.NoError(symlink.Symlink(hello))
 
 	equals, err := hello.DeepEquals(symlink)
-	p.NoError(err)
-	p.True(equals)
+	assert.NoError(err)
+	assert.True(equals)
 }
 
-func (p PathSuite) TestReadDir() {
-	require.NoError(p.T(), TwoFilesAtRootTwoInSubdir(p.tmpdir))
-	paths, err := p.tmpdir.ReadDir()
-	p.NoError(err)
-	p.Equal(3, len(paths))
+func TestReadDir(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	require.NoError(TwoFilesAtRootTwoInSubdir(tmpdir))
+	paths, err := tmpdir.ReadDir()
+	assert.NoError(err)
+	assert.Equal(3, len(paths))
 }
 
-func (p PathSuite) TestReadDirInvalidString() {
-	paths, err := p.tmpdir.Join("i_dont_exist").ReadDir()
-	p.Error(err)
-	p.Equal(0, len(paths))
+func TestReadDirInvalidString(t *testing.T) {
+	assert, _, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	paths, err := tmpdir.Join("i_dont_exist").ReadDir()
+	assert.Error(err)
+	assert.Equal(0, len(paths))
 }
 
-func (p PathSuite) TestCreate() {
+func TestCreate(t *testing.T) {
+	assert, _, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
 	msg := "hello world"
-	file, err := p.tmpdir.Join("hello.txt").Create()
-	p.NoError(err)
+	file, err := tmpdir.Join("hello.txt").Create()
+	assert.NoError(err)
 	defer file.Close()
 	n, err := file.WriteString(msg)
-	p.Equal(len(msg), n)
-	p.NoError(err)
+	assert.Equal(len(msg), n)
+	assert.NoError(err)
 }
 
-func (p PathSuite) TestGlobFunction() {
-	hello1 := p.tmpdir.Join("hello1.txt")
-	require.NoError(p.T(), hello1.WriteFile([]byte("hello")))
+func TestGlobFunction(t *testing.T) {
+	assert, require, tmpdir := setupPathTest(t)
+	defer teardownPathTest(t, tmpdir)
+	hello1 := tmpdir.Join("hello1.txt")
+	require.NoError(hello1.WriteFile([]byte("hello")))
 
-	hello2 := p.tmpdir.Join("hello2.txt")
-	require.NoError(p.T(), hello2.WriteFile([]byte("hello2")))
+	hello2 := tmpdir.Join("hello2.txt")
+	require.NoError(hello2.WriteFile([]byte("hello2")))
 
-	paths, err := p.tmpdir.Glob("hello1*")
-	p.NoError(err)
-	require.Equal(p.T(), 1, len(paths))
-	p.True(hello1.Equals(paths[0]), "received an unexpected path: %v", paths[0])
+	paths, err := tmpdir.Glob("hello1*")
+	assert.NoError(err)
+	require.Equal(1, len(paths))
+	assert.True(hello1.Equals(paths[0]), "received an unexpected path: %v", paths[0])
 }
 
-func TestPathSuite(t *testing.T) {
-	suite.Run(t, new(PathSuite))
+// -----------------------------------------------------------------------------
+//
+// Benchmarks
+//
+// -----------------------------------------------------------------------------
+
+func BenchmarkPath(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for i := 0; i < 200; i++ {
+			p := NewPath("/a/b/c/d/e/f/g/h/i/j")
+			_ = p.Parent().Parent().Parent().Parent().Parent()
+			p2 := NewPath("/a/b/c/d/e/f")
+			p, err := p.RelativeToPath(p2)
+			if err != nil {
+				b.Error(err)
+			}
+			_, err = p.WithName("foo")
+			_, err = p.WithSuffix(".ooo")
+			p.Clean()
+		}
+	}
 }
